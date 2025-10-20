@@ -7,6 +7,7 @@ import { reduxHooks } from 'hooks';
 import urls from 'data/services/lms/urls';
 
 import ConfirmEmailBanner from './ConfirmEmailBanner';
+import LanguageSelector from './LanguageSelector';
 
 import { useLearnerDashboardHeaderMenu, findCoursesNavClicked } from './hooks';
 
@@ -29,11 +30,16 @@ export const LearnerDashboardHeader = () => {
   return (
     <>
       <ConfirmEmailBanner />
-      <Header
-        mainMenuItems={learnerHomeHeaderMenu.mainMenu}
-        secondaryMenuItems={learnerHomeHeaderMenu.secondaryMenu}
-        userMenuItems={learnerHomeHeaderMenu.userMenu}
-      />
+      <div style={{ position: 'relative' }}>
+        <Header
+          mainMenuItems={learnerHomeHeaderMenu.mainMenu}
+          secondaryMenuItems={learnerHomeHeaderMenu.secondaryMenu}
+          userMenuItems={learnerHomeHeaderMenu.userMenu}
+        />
+        <div className="language-selector-in-header">
+          <LanguageSelector />
+        </div>
+      </div>
       <MasqueradeBar />
     </>
   );
