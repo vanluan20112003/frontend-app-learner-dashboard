@@ -14,6 +14,7 @@ export const simpleSelectors = StrictDict({
   emailConfirmation: mkSimpleSelector(app => app.emailConfirmation),
   enterpriseDashboard: mkSimpleSelector(app => app.enterpriseDashboard || {}),
   selectSessionModal: mkSimpleSelector(app => app.selectSessionModal),
+  userProfileModal: mkSimpleSelector(app => app.userProfileModal),
   pageNumber: mkSimpleSelector(app => app.pageNumber),
   filters: mkSimpleSelector(app => app.filters),
   socialShareSettings: mkSimpleSelector(app => app.socialShareSettings),

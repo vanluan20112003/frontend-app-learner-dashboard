@@ -14,6 +14,7 @@ export const useEmailConfirmationData = () => useSelector(selectors.emailConfirm
 export const useEnterpriseDashboardData = () => useSelector(selectors.enterpriseDashboard);
 export const usePlatformSettingsData = () => useSelector(selectors.platformSettings);
 export const useSelectSessionModalData = () => useSelector(selectors.selectSessionModal);
+export const useUserProfileModalData = () => useSelector(selectors.userProfileModal);
 export const useSocialShareSettings = () => useSelector(selectors.socialShareSettings);
 
 /** global-level meta-selectors **/
@@ -104,4 +105,19 @@ export const useLoadData = () => {
     dispatch(actions.loadGlobalData(globalData));
     dispatch(actions.loadCourses({ courses }));
   };
+};
+
+export const useOpenUserProfileModal = () => {
+  const dispatch = useDispatch();
+  return () => dispatch(actions.openUserProfileModal());
+};
+
+export const useCloseUserProfileModal = () => {
+  const dispatch = useDispatch();
+  return () => dispatch(actions.closeUserProfileModal());
+};
+
+export const useSetUserProfileCompleted = () => {
+  const dispatch = useDispatch();
+  return () => dispatch(actions.setUserProfileCompleted());
 };

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useWindowSize, breakpoints } from '@openedx/paragon';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { apiHooks } from 'hooks';
+import { apiHooks, reduxHooks } from 'hooks';
 import { StrictDict } from 'utils';
 
 import appMessages from 'messages';
@@ -13,7 +13,29 @@ export const state = StrictDict({
 
 export const useInitializeDashboard = () => {
   const initialize = apiHooks.useInitializeApp();
-  React.useEffect(() => { initialize(); }, []); // eslint-disable-line
+  const openUserProfileModal = reduxHooks.useOpenUserProfileModal();
+  const userProfileModal = reduxHooks.useUserProfileModalData();
+
+  React.useEffect(() => {
+    initialize();
+  }, []); // eslint-disable-line
+
+  // Auto-open user profile modal on first visit
+  React.useEffect(() => {
+    // Check if user has not completed profile yet
+    // You can also check localStorage or user settings from API
+    const hasSeenProfileModal = localStorage.getItem('hasSeenProfileModal');
+
+    if (!hasSeenProfileModal && !userProfileModal.hasCompletedProfile) {
+      // Wait a bit for the dashboard to load
+      const timer = setTimeout(() => {
+        openUserProfileModal();
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, []); // eslint-disable-line
 };
 
 export const useDashboardMessages = () => {

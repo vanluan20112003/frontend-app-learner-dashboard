@@ -1,8 +1,10 @@
 import React from 'react';
+import { getConfig } from '@edx/frontend-platform';
 
 import { reduxHooks } from 'hooks';
 import { RequestKeys } from 'data/constants/requests';
 import SelectSessionModal from 'containers/SelectSessionModal';
+import UserProfileModal from 'containers/UserProfileModal';
 import CoursesPanel from 'containers/CoursesPanel';
 import DashboardModalSlot from 'plugin-slots/DashboardModalSlot';
 
@@ -17,6 +19,90 @@ export const Dashboard = () => {
   const hasCourses = reduxHooks.useHasCourses();
   const initIsPending = reduxHooks.useRequestIsPending(RequestKeys.initialize);
   const showSelectSessionModal = reduxHooks.useShowSelectSessionModal();
+  const userProfileModal = reduxHooks.useUserProfileModalData();
+  const closeUserProfileModal = reduxHooks.useCloseUserProfileModal();
+  const setUserProfileCompleted = reduxHooks.useSetUserProfileCompleted();
+
+  // State để theo dõi việc đã kiểm tra quyền
+  const [hasCheckedPermission, setHasCheckedPermission] = React.useState(false);
+
+  // Check if we should show the user profile modal
+  const shouldShowUserProfileModal = !initIsPending
+    && userProfileModal.isOpen
+    && !userProfileModal.hasCompletedProfile;
+
+  const handleUserProfileSubmit = (data) => {
+    // Here you can send the data to your backend API
+    console.log('User profile data submitted:', data);
+    // TODO: Send data to backend API
+    // api.submitUserProfile(data);
+
+    // Mark profile as completed
+    setUserProfileCompleted();
+    localStorage.setItem('hasSeenProfileModal', 'true');
+  };
+
+  const handleUserProfileClose = () => {
+    closeUserProfileModal();
+    localStorage.setItem('hasSeenProfileModal', 'true');
+  };
+
+  // Kiểm tra quyền tạo khóa học sau khi modal đóng
+  React.useEffect(() => {
+    // Chỉ chạy khi:
+    // 1. Modal không còn mở
+    // 2. Chưa kiểm tra quyền
+    // 3. Đã hoàn thành profile hoặc đã bỏ qua modal
+    const shouldCheckPermission = !userProfileModal.isOpen
+      && !hasCheckedPermission
+      && !initIsPending
+      && localStorage.getItem('hasSeenProfileModal') === 'true';
+
+    if (!shouldCheckPermission) {
+      return;
+    }
+
+    const checkPermissionAndRedirect = async () => {
+      try {
+        const lmsBaseUrl = getConfig().LMS_BASE_URL;
+        const studioBaseUrl = getConfig().STUDIO_BASE_URL;
+
+        console.log('LMS URL:', lmsBaseUrl);
+        console.log('Studio URL:', studioBaseUrl);
+
+        const response = await fetch(`${lmsBaseUrl}/api/check-course-permission/`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+
+          // Nếu có quyền tạo course (can_create_course = 1)
+          if (data.can_create_course === 1) {
+            const redirectUrl = studioBaseUrl;
+
+            console.log('Redirecting to studio:', redirectUrl);
+            window.location.href = redirectUrl;
+            return;
+          }
+        } else {
+          console.warn('Permission check failed:', response.status, response.statusText);
+        }
+
+        // Đánh dấu đã kiểm tra quyền
+        setHasCheckedPermission(true);
+      } catch (error) {
+        console.error('Error checking course permission:', error);
+        setHasCheckedPermission(true);
+      }
+    };
+
+    checkPermissionAndRedirect();
+  }, [userProfileModal.isOpen, hasCheckedPermission, initIsPending]);
 
   return (
     <div id="dashboard-container" className="d-flex flex-column p-2 pt-0">
@@ -25,6 +111,13 @@ export const Dashboard = () => {
         <>
           <DashboardModalSlot />
           {(hasCourses && showSelectSessionModal) && <SelectSessionModal />}
+          {shouldShowUserProfileModal && (
+            <UserProfileModal
+              isOpen={userProfileModal.isOpen}
+              onClose={handleUserProfileClose}
+              onSubmit={handleUserProfileSubmit}
+            />
+          )}
         </>
       )}
       <div id="dashboard-content" data-testid="dashboard-content">

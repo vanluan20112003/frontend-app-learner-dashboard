@@ -11,6 +11,10 @@ const initialState = {
   platformSettings: {},
   suggestedCourses: [],
   selectSessionModal: {},
+  userProfileModal: {
+    isOpen: false,
+    hasCompletedProfile: false,
+  },
   filters: [],
 };
 
@@ -66,6 +70,27 @@ const app = createSlice({
     clearFilters: (state) => ({
       ...state,
       filters: [],
+    }),
+    openUserProfileModal: (state) => ({
+      ...state,
+      userProfileModal: {
+        ...state.userProfileModal,
+        isOpen: true,
+      },
+    }),
+    closeUserProfileModal: (state) => ({
+      ...state,
+      userProfileModal: {
+        ...state.userProfileModal,
+        isOpen: false,
+      },
+    }),
+    setUserProfileCompleted: (state) => ({
+      ...state,
+      userProfileModal: {
+        ...state.userProfileModal,
+        hasCompletedProfile: true,
+      },
     }),
   },
 });
