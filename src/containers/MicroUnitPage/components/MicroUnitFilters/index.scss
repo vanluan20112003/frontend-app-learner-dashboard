@@ -1,0 +1,92 @@
+@import "@openedx/paragon/scss/core/core";
+
+.micro-unit-filters {
+  margin-bottom: map-get($spacers, 4);
+
+  .filters-row {
+    display: flex;
+    gap: map-get($spacers, 3);
+    align-items: flex-start;
+    flex-wrap: wrap;
+
+    .search-container {
+      flex: 1;
+      min-width: 250px;
+
+      .micro-unit-search {
+        .pgn__searchfield {
+          width: 100%;
+        }
+      }
+    }
+
+    .filters-controls {
+      display: flex;
+      gap: map-get($spacers, 3);
+      align-items: center;
+      flex-wrap: wrap;
+
+      .filter-group {
+        margin-bottom: 0;
+
+        .difficulty-filter,
+        .sort-select {
+          min-width: 150px;
+          cursor: pointer;
+        }
+      }
+
+      .clear-filters-btn {
+        white-space: nowrap;
+      }
+    }
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 992px) {
+  .micro-unit-filters {
+    .filters-row {
+      flex-direction: column;
+
+      .search-container {
+        width: 100%;
+        min-width: auto;
+      }
+
+      .filters-controls {
+        width: 100%;
+        justify-content: flex-start;
+
+        .filter-group {
+          flex: 1;
+          min-width: 120px;
+
+          .difficulty-filter,
+          .sort-select {
+            width: 100%;
+            min-width: auto;
+          }
+        }
+      }
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .micro-unit-filters {
+    margin-bottom: map-get($spacers, 3);
+
+    .filters-row {
+      gap: map-get($spacers, 2);
+
+      .filters-controls {
+        gap: map-get($spacers, 2);
+
+        .clear-filters-btn {
+          width: 100%;
+        }
+      }
+    }
+  }
+}

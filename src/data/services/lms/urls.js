@@ -24,6 +24,14 @@ export const learningMfeUrl = (url) => updateUrl(getConfig().LEARNING_BASE_URL, 
 // static view url
 const programsUrl = () => baseAppUrl('/dashboard/programs');
 
+// micro unit urls
+const microUnitsApiUrl = () => `${getApiUrl()}/micro_unit/v1`;
+const microUnitsList = () => `${microUnitsApiUrl()}/micro-units/`;
+const microUnitDetail = (microUnitId) => `${microUnitsApiUrl()}/micro-units/${microUnitId}/`;
+const microUnitBlocks = (microUnitId) => `${microUnitsApiUrl()}/micro-units/${microUnitId}/blocks/`;
+const courseMicroUnits = (courseId) => `${microUnitsApiUrl()}/courses/${courseId}/micro-units/`;
+const courseUnits = (courseId) => `${microUnitsApiUrl()}/units/${courseId}`;
+
 export const creditPurchaseUrl = (courseId) => `${getEcommerceUrl()}/credit/checkout/${courseId}/`;
 export const creditRequestUrl = (providerId) => `${getApiUrl()}/credit/v1/providers/${providerId}/request/`;
 
@@ -31,12 +39,18 @@ export default StrictDict({
   getApiUrl,
   baseAppUrl,
   courseUnenroll,
+  courseMicroUnits,
+  courseUnits,
   creditPurchaseUrl,
   creditRequestUrl,
   entitlementEnrollment,
   event,
   getInitApiUrl,
   learningMfeUrl,
+  microUnitsApiUrl,
+  microUnitsList,
+  microUnitDetail,
+  microUnitBlocks,
   programsUrl,
   updateEmailSettings,
 });

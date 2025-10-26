@@ -19,6 +19,11 @@ export const RequestKeys = StrictDict({
   leaveEntitlementSession: 'leaveEntitlementSession',
   masquerade: 'masquerade',
   recommendedCourses: 'recommendedCourses',
+  fetchMicroUnits: 'fetchMicroUnits',
+  fetchCourseMicroUnits: 'fetchCourseMicroUnits',
+  fetchMicroUnitDetail: 'fetchMicroUnitDetail',
+  fetchMicroUnitBlocks: 'fetchMicroUnitBlocks',
+  fetchCourseUnits: 'fetchCourseUnits',
 });
 
 export const ErrorCodes = StrictDict({

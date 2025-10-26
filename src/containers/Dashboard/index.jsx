@@ -25,6 +25,8 @@ export const Dashboard = () => {
 
   // State để theo dõi việc đã kiểm tra quyền
   const [hasCheckedPermission, setHasCheckedPermission] = React.useState(false);
+  // State để theo dõi modal đã từng được mở chưa
+  const [hasModalBeenOpened, setHasModalBeenOpened] = React.useState(false);
 
   // const [showThankYou, setShowThankYou] = React.useState(false);
   // State để quản lý user profile preferences
@@ -83,16 +85,24 @@ export const Dashboard = () => {
     // localStorage.setItem('hasSeenProfileModal', 'true');
   };
 
-  // Kiểm tra quyền tạo khóa học sau khi modal đóng
+  // Track khi modal được mở
+  React.useEffect(() => {
+    if (userProfileModal.isOpen && !hasModalBeenOpened) {
+      setHasModalBeenOpened(true);
+    }
+  }, [userProfileModal.isOpen, hasModalBeenOpened]);
+
+  // Kiểm tra quyền tạo khóa học sau khi modal đóng hoặc không cần hiện
   React.useEffect(() => {
     // Chỉ chạy khi:
     // 1. Modal không còn mở
     // 2. Chưa kiểm tra quyền
-    // 3. Đã hoàn thành profile hoặc đã bỏ qua modal
+    // 3. Đã hoàn thành initialization
+    // 4. Modal đã từng được mở (user đã đóng) HOẶC profile đã complete (không cần mở modal)
     const shouldCheckPermission = !userProfileModal.isOpen
       && !hasCheckedPermission
       && !initIsPending
-      // && localStorage.getItem('hasSeenProfileModal') === 'true';
+      && (hasModalBeenOpened || userProfileModal.hasCompletedProfile);
 
     if (!shouldCheckPermission) {
       return;
@@ -138,7 +148,13 @@ export const Dashboard = () => {
     };
 
     checkPermissionAndRedirect();
-  }, [userProfileModal.isOpen, hasCheckedPermission, initIsPending]);
+  }, [
+    userProfileModal.isOpen,
+    userProfileModal.hasCompletedProfile,
+    hasCheckedPermission,
+    hasModalBeenOpened,
+    initIsPending,
+  ]);
 
   return (
     <div id="dashboard-container" className="d-flex flex-column p-2 pt-0">

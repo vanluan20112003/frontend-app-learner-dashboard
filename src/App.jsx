@@ -1,5 +1,6 @@
 import React from 'react';
 import { Helmet } from 'react-helmet';
+import { useLocation } from 'react-router-dom';
 
 import { useIntl } from '@edx/frontend-platform/i18n';
 import { logError } from '@edx/frontend-platform/logging';
@@ -17,6 +18,7 @@ import {
 } from 'data/redux';
 import { reduxHooks } from 'hooks';
 import Dashboard from 'containers/Dashboard';
+import MicroUnitPage from 'containers/MicroUnitPage';
 
 import track from 'tracking';
 
@@ -30,6 +32,7 @@ import messages from './messages';
 import './App.scss';
 
 export const App = () => {
+  const location = useLocation();
   const { authenticatedUser } = React.useContext(AppContext);
   const { formatMessage } = useIntl();
   const isFailed = {
@@ -39,6 +42,10 @@ export const App = () => {
   const hasNetworkFailure = isFailed.initialize || isFailed.refreshList;
   const { supportEmail } = reduxHooks.usePlatformSettingsData();
   const loadData = reduxHooks.useLoadData();
+
+  // Determine which page to render based on current path
+  const isMicroUnitPage = location.pathname === '/micro-unit';
+  const PageComponent = isMicroUnitPage ? MicroUnitPage : Dashboard;
 
   React.useEffect(() => {
     if (authenticatedUser?.administrator || getConfig().NODE_ENV === 'development') {
@@ -87,7 +94,7 @@ export const App = () => {
                   <ErrorPage message={formatMessage(messages.errorMessage, { supportEmail })} />
                 </Alert>
               ) : (
-                <Dashboard />
+                <PageComponent />
               )}
           </main>
         </AppWrapper>

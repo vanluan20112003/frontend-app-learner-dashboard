@@ -1,0 +1,124 @@
+@import "@openedx/paragon/scss/core/core";
+
+.micro-unit-card {
+  height: 100%;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .card {
+    height: 100%;
+    border-radius: $card-border-radius;
+    overflow: hidden;
+  }
+
+  .micro-unit-card-image-container {
+    position: relative;
+
+    .micro-unit-card-image {
+      height: 140px;
+      object-fit: cover;
+      background-color: $light-300;
+    }
+
+    .micro-unit-card-badge {
+      position: absolute;
+      top: map-get($spacers, 2);
+      right: map-get($spacers, 2);
+
+      .badge {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 0.25rem 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      }
+    }
+  }
+
+  .micro-unit-card-title-container {
+    margin-bottom: map-get($spacers, 1_5);
+
+    .micro-unit-card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: $gray-900;
+      margin-bottom: map-get($spacers, 1_5);
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .micro-unit-card-course-name {
+      font-size: 0.8rem;
+      color: $gray-600;
+      margin-top: map-get($spacers, 1);
+    }
+  }
+
+  .micro-unit-card-details {
+    .micro-unit-card-description {
+      font-size: 0.8rem;
+      color: $gray-700;
+      line-height: 1.4;
+      margin-bottom: map-get($spacers, 2);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .micro-unit-card-meta {
+      display: flex;
+      gap: map-get($spacers, 2);
+      flex-wrap: wrap;
+
+      .meta-item {
+        display: flex;
+        align-items: center;
+        gap: map-get($spacers, 1_5);
+        font-size: 0.8rem;
+        color: $gray-600;
+
+        .meta-icon {
+          font-size: 1rem;
+          color: $gray-500;
+        }
+
+        .meta-text {
+          white-space: nowrap;
+        }
+      }
+    }
+  }
+
+  .micro-unit-card-actions {
+    .btn {
+      font-weight: 500;
+      white-space: nowrap;
+    }
+  }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+  .micro-unit-card {
+    .micro-unit-card-image-container {
+      .micro-unit-card-image {
+        height: 120px;
+      }
+    }
+
+    .micro-unit-card-title {
+      font-size: 0.95rem;
+    }
+  }
+}

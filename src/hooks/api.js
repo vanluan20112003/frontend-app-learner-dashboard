@@ -103,3 +103,52 @@ export const useCreateCreditRequest = (cardId) => {
   const { courseId } = reduxHooks.useCardCourseRunData(cardId);
   return () => api.createCreditRequest({ providerId, courseId, username });
 };
+
+/*********************************************************************************
+ * Micro Unit API Hooks
+ *********************************************************************************/
+
+/**
+ * Hook to fetch all micro units with optional filters
+ * Returns a function that accepts filter parameters
+ */
+export const useFetchMicroUnits = (onSuccess) => module.useNetworkRequest(
+  (filters) => api.fetchMicroUnits(filters),
+  { requestKey: RequestKeys.fetchMicroUnits, onSuccess },
+);
+
+/**
+ * Hook to fetch micro units for a specific course
+ * Returns a function that accepts a courseId
+ */
+export const useFetchCourseMicroUnits = (onSuccess) => module.useNetworkRequest(
+  (courseId) => api.fetchCourseMicroUnits(courseId),
+  { requestKey: RequestKeys.fetchCourseMicroUnits, onSuccess },
+);
+
+/**
+ * Hook to fetch a single micro unit detail
+ * Returns a function that accepts a microUnitId
+ */
+export const useFetchMicroUnitDetail = (onSuccess) => module.useNetworkRequest(
+  (microUnitId) => api.fetchMicroUnitDetail(microUnitId),
+  { requestKey: RequestKeys.fetchMicroUnitDetail, onSuccess },
+);
+
+/**
+ * Hook to fetch blocks for a micro unit
+ * Returns a function that accepts a microUnitId
+ */
+export const useFetchMicroUnitBlocks = (onSuccess) => module.useNetworkRequest(
+  (microUnitId) => api.fetchMicroUnitBlocks(microUnitId),
+  { requestKey: RequestKeys.fetchMicroUnitBlocks, onSuccess },
+);
+
+/**
+ * Hook to fetch units/verticals for a course
+ * Returns a function that accepts a courseId
+ */
+export const useFetchCourseUnits = (onSuccess) => module.useNetworkRequest(
+  (courseId) => api.fetchCourseUnits(courseId),
+  { requestKey: RequestKeys.fetchCourseUnits, onSuccess },
+);

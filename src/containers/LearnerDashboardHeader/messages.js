@@ -61,6 +61,11 @@ const messages = defineMessages({
     defaultMessage: 'Discover New',
     description: 'Header link for switching to discover page.',
   },
+  microUnit: {
+    id: 'learnerVariantDashboard.microUnit',
+    defaultMessage: 'Micro Unit',
+    description: 'Header link for switching to micro unit page.',
+  },
   logoAltText: {
     id: 'learnerVariantDashboard.logoAltText',
     defaultMessage: 'edX, Inc. Dashboard',
