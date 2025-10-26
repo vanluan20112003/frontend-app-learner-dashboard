@@ -22,7 +22,9 @@ const MicroUnitCardActions = ({ microUnit }) => {
       const blockUsageKey = firstBlock.block_usage_key;
 
       const learningBaseUrl = getConfig().LEARNING_BASE_URL || '';
-      const microUnitUrl = `${learningBaseUrl}/learning/micro-units/${courseId}/${id}/${blockUsageKey}`;
+      // Check if learningBaseUrl already ends with /learning
+      const baseUrl = learningBaseUrl.endsWith('/learning') ? learningBaseUrl : `${learningBaseUrl}/learning`;
+      const microUnitUrl = `${baseUrl}/micro-units/${courseId}/${id}/${blockUsageKey}`;
 
       console.log(`[MicroUnit] Navigating to: ${microUnitUrl}`);
       window.location.href = microUnitUrl;

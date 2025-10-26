@@ -20,7 +20,9 @@ const MicroUnitBlocksList = ({ blocks, microUnitId, courseId }) => {
     // Navigate to the micro unit learning page with this block
     const { block_usage_key: blockUsageKey } = block;
     const learningBaseUrl = getConfig().LEARNING_BASE_URL || '';
-    const microUnitUrl = `${learningBaseUrl}/learning/micro-units/${courseId}/${microUnitId}/${blockUsageKey}`;
+    // Check if learningBaseUrl already ends with /learning
+    const baseUrl = learningBaseUrl.endsWith('/learning') ? learningBaseUrl : `${learningBaseUrl}/learning`;
+    const microUnitUrl = `${baseUrl}/micro-units/${courseId}/${microUnitId}/${blockUsageKey}`;
     window.location.href = microUnitUrl;
   };
 

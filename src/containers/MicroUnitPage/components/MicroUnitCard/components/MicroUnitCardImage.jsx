@@ -42,7 +42,9 @@ const MicroUnitCardImage = ({ microUnit, courseId, microUnitId, blocks }) => {
     if (blocks && blocks.length > 0 && courseId && microUnitId) {
       const firstBlock = blocks[0];
       const learningBaseUrl = getConfig().LEARNING_BASE_URL || '';
-      const microUnitUrl = `${learningBaseUrl}/learning/micro-units/${courseId}/${microUnitId}/${firstBlock.block_usage_key}`;
+      // Check if learningBaseUrl already ends with /learning
+      const baseUrl = learningBaseUrl.endsWith('/learning') ? learningBaseUrl : `${learningBaseUrl}/learning`;
+      const microUnitUrl = `${baseUrl}/micro-units/${courseId}/${microUnitId}/${firstBlock.block_usage_key}`;
       window.location.href = microUnitUrl;
     }
   };
