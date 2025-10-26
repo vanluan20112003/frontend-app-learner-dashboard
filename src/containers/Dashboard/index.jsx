@@ -26,10 +26,15 @@ export const Dashboard = () => {
   // State để theo dõi việc đã kiểm tra quyền
   const [hasCheckedPermission, setHasCheckedPermission] = React.useState(false);
 
+  // const [showThankYou, setShowThankYou] = React.useState(false);
+  // State để quản lý user profile preferences
+  // const [isSubmittingProfile, setIsSubmittingProfile] = React.useState(false);
+  // const [profileSubmitError, setProfileSubmitError] = React.useState(null);
+
   // Check if we should show the user profile modal
   const shouldShowUserProfileModal = !initIsPending
     && userProfileModal.isOpen
-    && !userProfileModal.hasCompletedProfile;
+    // && !userProfileModal.hasCompletedProfile;
 
   const handleUserProfileSubmit = (data) => {
     // Here you can send the data to your backend API
@@ -39,12 +44,43 @@ export const Dashboard = () => {
 
     // Mark profile as completed
     setUserProfileCompleted();
-    localStorage.setItem('hasSeenProfileModal', 'true');
+
+    // setShowThankYou(true)
+    // localStorage.setItem('hasSeenProfileModal', 'true');
+    // closeUserProfileModal();
   };
 
+  // const handleUserProfileSubmit = async (data) => {
+  //   try {
+  //     setIsSubmittingProfile(true);
+  //     setProfileSubmitError(null);
+
+  //     console.log('Submitting user profile data:', data);
+
+  //     // Call backend API to save profile
+  //     await saveUserProfile(data);
+
+  //     console.log('Profile saved successfully');
+
+  //     // Mark profile as completed in Redux
+  //     setUserProfileCompleted();
+  //     localStorage.setItem('hasSeenProfileModal', 'true');
+
+  //     // Close modal
+  //     closeUserProfileModal();
+  //   } catch (error) {
+  //     console.error('Error saving profile:', error);
+  //     setProfileSubmitError(error.message);
+  //     // Modal stays open so user can retry
+  //   } finally {
+  //     setIsSubmittingProfile(false);
+  //   }
+  // };
+
   const handleUserProfileClose = () => {
+    // setShowThankYou(false);
     closeUserProfileModal();
-    localStorage.setItem('hasSeenProfileModal', 'true');
+    // localStorage.setItem('hasSeenProfileModal', 'true');
   };
 
   // Kiểm tra quyền tạo khóa học sau khi modal đóng
@@ -56,7 +92,7 @@ export const Dashboard = () => {
     const shouldCheckPermission = !userProfileModal.isOpen
       && !hasCheckedPermission
       && !initIsPending
-      && localStorage.getItem('hasSeenProfileModal') === 'true';
+      // && localStorage.getItem('hasSeenProfileModal') === 'true';
 
     if (!shouldCheckPermission) {
       return;
@@ -116,6 +152,9 @@ export const Dashboard = () => {
               isOpen={userProfileModal.isOpen}
               onClose={handleUserProfileClose}
               onSubmit={handleUserProfileSubmit}
+              // showThankYou={showThankYou}
+              // isLoading={isSubmittingProfile}
+              // error={profileSubmitError}
             />
           )}
         </>

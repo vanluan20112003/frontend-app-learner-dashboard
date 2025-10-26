@@ -51,13 +51,13 @@
 // Language selector positioning
 .language-selector-in-header {
   position: absolute;
-  right: 70px;
+  right: 300px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 1001;
 
   @media (max-width: 1024px) {
-    right: 60px;
+    right: 300px;
   }
 
   @media (max-width: 768px) {
