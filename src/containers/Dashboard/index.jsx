@@ -27,6 +27,13 @@ export const Dashboard = () => {
   const [hasCheckedPermission, setHasCheckedPermission] = React.useState(false);
   // State để theo dõi modal đã từng được mở chưa
   const [hasModalBeenOpened, setHasModalBeenOpened] = React.useState(false);
+  // State để lưu thông tin user và quyền
+  const [userPermission, setUserPermission] = React.useState({
+    canCreateCourse: false,
+    isStaff: false,
+    isAdmin: false,
+    shouldShowButton: false,
+  });
 
   // const [showThankYou, setShowThankYou] = React.useState(false);
   // State để quản lý user profile preferences
@@ -116,6 +123,32 @@ export const Dashboard = () => {
         console.log('LMS URL:', lmsBaseUrl);
         console.log('Studio URL:', studioBaseUrl);
 
+        // Bước 1: Kiểm tra user role từ API /me
+        let userRole = { isStaff: false, isAdmin: false };
+        try {
+          const userResponse = await fetch(`${lmsBaseUrl}/api/custom/v1/users/me/`, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          if (userResponse.ok) {
+            const userData = await userResponse.json();
+            if (userData.success && userData.data) {
+              userRole = {
+                isStaff: userData.data.is_staff || false,
+                isAdmin: userData.data.is_superuser || false,
+              };
+              console.log('User role:', userRole);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch user role:', error);
+        }
+
+        // Bước 2: Kiểm tra quyền tạo course
         const response = await fetch(`${lmsBaseUrl}/api/check-course-permission/`, {
           method: 'GET',
           credentials: 'include',
@@ -129,11 +162,23 @@ export const Dashboard = () => {
 
           // Nếu có quyền tạo course (can_create_course = 1)
           if (data.can_create_course === 1) {
-            const redirectUrl = studioBaseUrl;
-
-            console.log('Redirecting to studio:', redirectUrl);
-            window.location.href = redirectUrl;
-            return;
+            // Logic mới: Kiểm tra role
+            if (userRole.isStaff || userRole.isAdmin) {
+              // Admin/Staff: Hiện nút thay vì redirect tự động
+              console.log('Admin/Staff với quyền tạo course - Hiển thị nút');
+              setUserPermission({
+                canCreateCourse: true,
+                isStaff: userRole.isStaff,
+                isAdmin: userRole.isAdmin,
+                shouldShowButton: true,
+              });
+            } else {
+              // User thường có quyền: Redirect ngay
+              const redirectUrl = studioBaseUrl;
+              console.log('User thường có quyền - Redirecting to studio:', redirectUrl);
+              window.location.href = redirectUrl;
+              return;
+            }
           }
         } else {
           console.warn('Permission check failed:', response.status, response.statusText);
@@ -180,7 +225,7 @@ export const Dashboard = () => {
           ? (<LoadingView />)
           : (
             <DashboardLayout>
-              <CoursesPanel />
+              <CoursesPanel userPermission={userPermission} />
             </DashboardLayout>
           )}
       </div>

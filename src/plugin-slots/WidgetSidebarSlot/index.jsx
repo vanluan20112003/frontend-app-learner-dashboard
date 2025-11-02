@@ -2,6 +2,7 @@ import React from 'react';
 
 import { PluginSlot } from '@openedx/frontend-plugin-framework';
 import LookingForChallengeWidget from 'widgets/LookingForChallengeWidget';
+import GeneralChatWidget from 'widgets/GeneralChatWidget';
 
 // eslint-disable-next-line arrow-body-style
 export const WidgetSidebarSlot = () => (
@@ -10,6 +11,7 @@ export const WidgetSidebarSlot = () => (
     idAliases={['widget_sidebar_slot']}
   >
     <LookingForChallengeWidget />
+    <GeneralChatWidget />
   </PluginSlot>
 );
 
