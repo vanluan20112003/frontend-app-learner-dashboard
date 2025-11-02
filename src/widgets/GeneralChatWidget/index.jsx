@@ -41,7 +41,7 @@ export const GeneralChatWidget = () => {
   const { formatMessage } = useIntl();
 
   // Get saved state from sessionStorage
-  const savedChatOpen = sessionStorage.getItem('chatWidgetOpen') === 'true';
+  const savedChatOpen = sessionStorage.getItem('chatWidgetOpen') !== 'false'; // Default true
   const savedExpanded = sessionStorage.getItem('chatWidgetExpanded') !== 'false'; // Default true
 
   const [isExpanded, setIsExpanded] = useState(savedExpanded);
