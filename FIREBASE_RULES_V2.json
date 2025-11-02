@@ -1,0 +1,99 @@
+{
+  "rules": {
+    ".read": "now < 1764608400000",
+    ".write": "now < 1764608400000",
+    "generalChat": {
+      ".read": true,
+      ".write": true,
+      "messages": {
+        ".read": true,
+        ".indexOn": ["userId", "timestamp"],
+        "$messageId": {
+          ".write": "!data.exists() || (auth != null && (root.child('users').child(auth.uid).child('isStaff').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true))",
+          ".validate": "newData.hasChildren(['text', 'userName', 'userId', 'userRole', 'timestamp'])",
+          "text": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 500"
+          },
+          "userName": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100"
+          },
+          "userId": {
+            ".validate": "newData.isString() && newData.val().length > 0"
+          },
+          "userRole": {
+            ".validate": "newData.isString()"
+          },
+          "isStaff": {
+            ".validate": "newData.isBoolean()"
+          },
+          "isAdmin": {
+            ".validate": "newData.isBoolean()"
+          },
+          "timestamp": {
+            ".validate": "newData.val() === now || newData.isString()"
+          },
+          "createdAt": {
+            ".validate": "newData.isString()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "blockedUsers": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('isStaff').val() === true",
+        "$userId": {
+          ".write": "auth != null && root.child('users').child(auth.uid).child('isStaff').val() === true",
+          ".validate": "newData.hasChildren(['blockedAt', 'blockedBy', 'blockedByName'])",
+          "blockedAt": {
+            ".validate": "newData.isString()"
+          },
+          "blockedBy": {
+            ".validate": "newData.isString()"
+          },
+          "blockedByName": {
+            ".validate": "newData.isString()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
+      },
+      "pinnedMessage": {
+        ".read": true,
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('isStaff').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
+        ".validate": "newData.hasChildren(['messageId', 'text', 'userName', 'userId', 'pinnedAt', 'pinnedBy', 'pinnedByName'])",
+        "messageId": {
+          ".validate": "newData.isString()"
+        },
+        "text": {
+          ".validate": "newData.isString()"
+        },
+        "userName": {
+          ".validate": "newData.isString()"
+        },
+        "userId": {
+          ".validate": "newData.isString()"
+        },
+        "isStaff": {
+          ".validate": "newData.isBoolean()"
+        },
+        "isAdmin": {
+          ".validate": "newData.isBoolean()"
+        },
+        "pinnedAt": {
+          ".validate": "newData.val() === now"
+        },
+        "pinnedBy": {
+          ".validate": "newData.isString()"
+        },
+        "pinnedByName": {
+          ".validate": "newData.isString()"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}
