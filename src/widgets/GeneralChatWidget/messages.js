@@ -21,16 +21,6 @@ const messages = defineMessages({
     defaultMessage: 'Close Chat',
     description: 'Button text to close the chat',
   },
-  expand: {
-    id: 'learnerDashboard.generalChatWidget.expand',
-    defaultMessage: 'Expand',
-    description: 'Button text to expand the widget',
-  },
-  collapse: {
-    id: 'learnerDashboard.generalChatWidget.collapse',
-    defaultMessage: 'Collapse',
-    description: 'Button text to collapse the widget',
-  },
   welcomeMessage: {
     id: 'learnerDashboard.generalChatWidget.welcomeMessage',
     defaultMessage: 'Welcome to the general chat! Start a conversation with fellow learners.',

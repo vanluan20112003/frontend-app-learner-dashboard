@@ -1,6 +1,8 @@
 @import "@openedx/paragon/scss/core/core";
 
 #general-chat-widget {
+  margin-bottom: map-get($spacers, 4);
+
   .pgn__card-header {
     background-color: $light-200;
     padding: map-get($spacers, 3);

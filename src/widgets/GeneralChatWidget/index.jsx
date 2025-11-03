@@ -3,8 +3,6 @@ import { useIntl } from '@edx/frontend-platform/i18n';
 import { Card, Button, Icon, IconButton, Spinner, Alert, Dropdown } from '@openedx/paragon';
 import {
   Chat,
-  ExpandLess,
-  ExpandMore,
   Close,
   Send,
   Delete,
@@ -12,6 +10,8 @@ import {
   PushPin,
   MoreVert,
   InsertEmoticon,
+  ExpandLess,
+  ExpandMore,
 } from '@openedx/paragon/icons';
 import EmojiPicker from 'emoji-picker-react';
 
@@ -42,9 +42,7 @@ export const GeneralChatWidget = () => {
 
   // Get saved state from sessionStorage
   const savedChatOpen = sessionStorage.getItem('chatWidgetOpen') !== 'false'; // Default true
-  const savedExpanded = sessionStorage.getItem('chatWidgetExpanded') !== 'false'; // Default true
 
-  const [isExpanded, setIsExpanded] = useState(savedExpanded);
   const [isChatOpen, setIsChatOpen] = useState(savedChatOpen);
   const [chatMessages, setChatMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
@@ -84,12 +82,6 @@ export const GeneralChatWidget = () => {
 
     loadUserInfo();
   }, []);
-
-  const toggleExpand = () => {
-    const newExpanded = !isExpanded;
-    setIsExpanded(newExpanded);
-    sessionStorage.setItem('chatWidgetExpanded', newExpanded);
-  };
 
   const toggleChat = () => {
     const newChatOpen = !isChatOpen;
@@ -403,27 +395,7 @@ export const GeneralChatWidget = () => {
 
   return (
     <Card id="general-chat-widget" className="mt-3">
-      <Card.Header
-        className="d-flex justify-content-between align-items-center"
-        actions={(
-          <IconButton
-            src={isExpanded ? ExpandLess : ExpandMore}
-            iconAs={Icon}
-            alt={formatMessage(isExpanded ? messages.collapse : messages.expand)}
-            onClick={toggleExpand}
-            variant="primary"
-            size="sm"
-          />
-        )}
-      >
-        <div className="d-flex align-items-center">
-          <Icon src={Chat} className="mr-2" />
-          <h4 className="mb-0">{formatMessage(messages.generalChat)}</h4>
-        </div>
-      </Card.Header>
-
-      {isExpanded && (
-        <Card.Body>
+      <Card.Body>
           {!isChatOpen ? (
             <div className="chat-preview">
               <p className="text-muted mb-3">
@@ -695,8 +667,7 @@ export const GeneralChatWidget = () => {
               </div>
             </div>
           )}
-        </Card.Body>
-      )}
+      </Card.Body>
     </Card>
   );
 };

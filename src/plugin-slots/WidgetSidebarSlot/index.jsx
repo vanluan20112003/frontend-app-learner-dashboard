@@ -10,8 +10,8 @@ export const WidgetSidebarSlot = () => (
     id="org.openedx.frontend.learner_dashboard.widget_sidebar.v1"
     idAliases={['widget_sidebar_slot']}
   >
-    <LookingForChallengeWidget />
     <GeneralChatWidget />
+    <LookingForChallengeWidget />
   </PluginSlot>
 );
 
