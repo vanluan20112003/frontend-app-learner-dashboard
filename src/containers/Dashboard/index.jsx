@@ -53,6 +53,9 @@ export const Dashboard = () => {
 
     // Mark profile as completed
     setUserProfileCompleted();
+    
+    // Clear the skipped flag since user completed it
+    sessionStorage.removeItem('user_profile_modal_skipped');
 
     // setShowThankYou(true)
     // localStorage.setItem('hasSeenProfileModal', 'true');
@@ -87,6 +90,9 @@ export const Dashboard = () => {
   // };
 
   const handleUserProfileClose = () => {
+    // Mark as skipped in session storage - won't show again until browser is closed
+    sessionStorage.setItem('user_profile_modal_skipped', 'true');
+    
     // setShowThankYou(false);
     closeUserProfileModal();
     // localStorage.setItem('hasSeenProfileModal', 'true');

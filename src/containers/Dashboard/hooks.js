@@ -44,6 +44,14 @@ export const useInitializeDashboard = () => {
 
     const checkAndOpenModal = async () => {
       try {
+        // Check if user skipped the modal in this session
+        const skippedInSession = sessionStorage.getItem('user_profile_modal_skipped') === 'true';
+        
+        if (skippedInSession) {
+          console.log('User profile modal was skipped in this session, not showing again');
+          return;
+        }
+
         console.log('Checking user profile completion status...');
         const data = await checkUserProfile();
         
