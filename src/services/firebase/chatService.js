@@ -202,6 +202,7 @@ export const subscribeToMessages = async (callback, limit = 50) => {
 
 /**
  * Block a user and delete all their messages (admin/staff only)
+ * Simplified version - check API and write to Firebase Database
  * @param {string} userId - User ID to block
  * @param {string} userName - User name to block
  * @param {Object} user - User attempting to block
@@ -209,52 +210,63 @@ export const subscribeToMessages = async (callback, limit = 50) => {
  */
 export const blockUser = async (userId, userName, user) => {
   try {
+    // Step 1: Check permission from user object (already authenticated)
     if (!user.isStaff && !user.isAdmin) {
-      return { success: false, error: 'Permission denied' };
+      console.log('Block user permission check:', { isStaff: user.isStaff, isAdmin: user.isAdmin });
+      return { success: false, error: 'Permission denied. Only admin/staff can block users.' };
     }
 
+    // Step 2: Write to Firebase Database at bannedUsers node
     const database = await getFirebaseDatabase();
     if (!database) {
       return { success: false, error: 'Firebase not initialized' };
     }
 
-    const { ref, set, get, remove, query, orderByChild, equalTo } = await import('firebase/database');
+    const { ref, set, get, remove } = await import('firebase/database');
     const { getDatabasePath } = await import('./config');
     const { CHAT_ROOMS } = await import('./chatRooms');
 
     const dbPath = getDatabasePath();
-    // Add user to blocked list (global, not room-specific)
-    const blockedRef = ref(database, `${dbPath}/blockedUsers/${userId}`);
-    await set(blockedRef, {
-      userId,
-      userName,
-      blockedAt: new Date().toISOString(),
-      blockedBy: user.id || user.username,
-      blockedByName: user.name,
+
+    console.log('Blocking user:', userId, 'by:', user.username || user.id);
+
+    // Write to bannedUsers node
+    const bannedUserRef = ref(database, `${dbPath}/bannedUsers/${userId}`);
+    await set(bannedUserRef, {
+      bannedAt: new Date().toISOString(),
+      bannedBy: user.username || user.id,
     });
 
-    // Delete all messages from this user in ALL rooms
+    console.log('User banned successfully in database');
+
+    // Step 3: Delete all messages from this user in ALL rooms
     const deletePromises = [];
     for (const room of Object.values(CHAT_ROOMS)) {
       const roomPath = `${dbPath}/${room.id}`;
       const messagesRef = ref(database, `${roomPath}/messages`);
-      const userMessagesQuery = query(messagesRef, orderByChild('userId'), equalTo(userId));
-      const snapshot = await get(userMessagesQuery);
+
+      // Get all messages and filter client-side (no index needed)
+      const snapshot = await get(messagesRef);
 
       if (snapshot.exists()) {
         snapshot.forEach((childSnapshot) => {
-          const messageRef = ref(database, `${roomPath}/messages/${childSnapshot.key}`);
-          deletePromises.push(remove(messageRef));
+          const message = childSnapshot.val();
+          // Check if this message belongs to the banned user
+          if (message.userId === userId) {
+            const messageRef = ref(database, `${roomPath}/messages/${childSnapshot.key}`);
+            deletePromises.push(remove(messageRef));
+          }
         });
       }
     }
 
     await Promise.all(deletePromises);
+    console.log('Deleted', deletePromises.length, 'messages from banned user');
 
     return { success: true };
   } catch (error) {
     console.error('Error blocking user:', error);
-    return { success: false, error };
+    return { success: false, error: error.message || 'Failed to block user' };
   }
 };
 
@@ -266,10 +278,13 @@ export const blockUser = async (userId, userName, user) => {
  */
 export const unblockUser = async (userId, user) => {
   try {
+    // Step 1: Check permission from user object (already authenticated)
     if (!user.isStaff && !user.isAdmin) {
-      return { success: false, error: 'Permission denied' };
+      console.log('Unblock user permission check:', { isStaff: user.isStaff, isAdmin: user.isAdmin });
+      return { success: false, error: 'Permission denied. Only admin/staff can unblock users.' };
     }
 
+    // Step 2: Remove from bannedUsers node
     const database = await getFirebaseDatabase();
     if (!database) {
       return { success: false, error: 'Firebase not initialized' };
@@ -278,13 +293,16 @@ export const unblockUser = async (userId, user) => {
     const { ref, remove } = await import('firebase/database');
     const { getDatabasePath } = await import('./config');
     const dbPath = getDatabasePath();
-    const blockedRef = ref(database, `${dbPath}/blockedUsers/${userId}`);
+    const bannedRef = ref(database, `${dbPath}/bannedUsers/${userId}`);
 
-    await remove(blockedRef);
+    console.log('Unblocking user:', userId, 'by:', user.username || user.id);
+    await remove(bannedRef);
+    console.log('User unblocked successfully');
+
     return { success: true };
   } catch (error) {
     console.error('Error unblocking user:', error);
-    return { success: false, error };
+    return { success: false, error: error.message || 'Failed to unblock user' };
   }
 };
 
@@ -303,8 +321,8 @@ export const isUserBlocked = async (userId) => {
     const { ref, get } = await import('firebase/database');
     const { getDatabasePath } = await import('./config');
     const dbPath = getDatabasePath();
-    const blockedRef = ref(database, `${dbPath}/blockedUsers/${userId}`);
-    const snapshot = await get(blockedRef);
+    const bannedRef = ref(database, `${dbPath}/bannedUsers/${userId}`);
+    const snapshot = await get(bannedRef);
 
     return snapshot.exists();
   } catch (error) {
@@ -327,8 +345,8 @@ export const getBlockedUsers = async () => {
     const { ref, get } = await import('firebase/database');
     const { getDatabasePath } = await import('./config');
     const dbPath = getDatabasePath();
-    const blockedRef = ref(database, `${dbPath}/blockedUsers`);
-    const snapshot = await get(blockedRef);
+    const bannedRef = ref(database, `${dbPath}/bannedUsers`);
+    const snapshot = await get(bannedRef);
 
     const blockedUsers = [];
     if (snapshot.exists()) {
