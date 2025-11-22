@@ -1,4 +1,5 @@
-import { getFirebaseDatabase } from './config';
+import { getFirebaseDatabase, getFullDatabasePath } from './config';
+import { getCurrentRoom } from './chatRooms';
 
 /**
  * Send a message to the general chat
@@ -21,7 +22,9 @@ export const sendMessage = async (message, user) => {
     }
 
     const { ref, push, serverTimestamp } = await import('firebase/database');
-    const messagesRef = ref(database, 'generalChat/messages');
+    const currentRoom = getCurrentRoom();
+    const dbPath = getFullDatabasePath(currentRoom);
+    const messagesRef = ref(database, `${dbPath}/messages`);
 
     const newMessage = {
       text: message,
@@ -65,13 +68,75 @@ export const deleteMessage = async (messageId, user, messageOwnerId = null) => {
     }
 
     const { ref, remove } = await import('firebase/database');
-    const messageRef = ref(database, `generalChat/messages/${messageId}`);
+    const currentRoom = getCurrentRoom();
+    const dbPath = getFullDatabasePath(currentRoom);
+    const messageRef = ref(database, `${dbPath}/messages/${messageId}`);
 
     await remove(messageRef);
     return { success: true };
   } catch (error) {
     console.error('Error deleting message:', error);
     return { success: false, error };
+  }
+};
+
+/**
+ * Subscribe to messages in a specific room
+ * @param {string} roomId - Room ID to subscribe to
+ * @param {Function} callback - Callback function to receive messages
+ * @param {number} limit - Maximum number of messages to fetch
+ * @returns {Promise<Function>} - Unsubscribe function
+ */
+export const subscribeToRoomMessages = async (roomId, callback, limit = 50) => {
+  try {
+    const database = await getFirebaseDatabase();
+    if (!database) {
+      callback([]);
+      return () => {};
+    }
+
+    const { ref, onValue, off, query, orderByChild, limitToLast } = await import('firebase/database');
+
+    const dbPath = getFullDatabasePath(roomId);
+    const messagesRef = ref(database, `${dbPath}/messages`);
+    const messagesQuery = query(
+      messagesRef,
+      orderByChild('timestamp'),
+      limitToLast(limit)
+    );
+
+    const handleMessages = (snapshot) => {
+      const messages = [];
+      snapshot.forEach((childSnapshot) => {
+        messages.push({
+          id: childSnapshot.key,
+          ...childSnapshot.val(),
+        });
+      });
+
+      // Sort messages by timestamp (oldest first)
+      messages.sort((a, b) => {
+        const timeA = a.timestamp || new Date(a.createdAt).getTime();
+        const timeB = b.timestamp || new Date(b.createdAt).getTime();
+        return timeA - timeB;
+      });
+
+      callback(messages);
+    };
+
+    const handleError = (error) => {
+      console.error(`Error subscribing to room ${roomId} messages:`, error);
+      callback([]);
+    };
+
+    onValue(messagesQuery, handleMessages, handleError);
+
+    // Return unsubscribe function
+    return () => off(messagesQuery, 'value', handleMessages);
+  } catch (error) {
+    console.error(`Error setting up subscription for room ${roomId}:`, error);
+    callback([]);
+    return () => {};
   }
 };
 
@@ -91,7 +156,9 @@ export const subscribeToMessages = async (callback, limit = 50) => {
 
     const { ref, onValue, off, query, orderByChild, limitToLast } = await import('firebase/database');
 
-    const messagesRef = ref(database, 'generalChat/messages');
+    const currentRoom = getCurrentRoom();
+    const dbPath = getFullDatabasePath(currentRoom);
+    const messagesRef = ref(database, `${dbPath}/messages`);
     const messagesQuery = query(
       messagesRef,
       orderByChild('timestamp'),
@@ -136,10 +203,11 @@ export const subscribeToMessages = async (callback, limit = 50) => {
 /**
  * Block a user and delete all their messages (admin/staff only)
  * @param {string} userId - User ID to block
+ * @param {string} userName - User name to block
  * @param {Object} user - User attempting to block
  * @returns {Promise} - Promise that resolves when user is blocked
  */
-export const blockUser = async (userId, user) => {
+export const blockUser = async (userId, userName, user) => {
   try {
     if (!user.isStaff && !user.isAdmin) {
       return { success: false, error: 'Permission denied' };
@@ -151,28 +219,37 @@ export const blockUser = async (userId, user) => {
     }
 
     const { ref, set, get, remove, query, orderByChild, equalTo } = await import('firebase/database');
+    const { getDatabasePath } = await import('./config');
+    const { CHAT_ROOMS } = await import('./chatRooms');
 
-    // Add user to blocked list
-    const blockedRef = ref(database, `generalChat/blockedUsers/${userId}`);
+    const dbPath = getDatabasePath();
+    // Add user to blocked list (global, not room-specific)
+    const blockedRef = ref(database, `${dbPath}/blockedUsers/${userId}`);
     await set(blockedRef, {
+      userId,
+      userName,
       blockedAt: new Date().toISOString(),
       blockedBy: user.id || user.username,
       blockedByName: user.name,
     });
 
-    // Delete all messages from this user
-    const messagesRef = ref(database, 'generalChat/messages');
-    const userMessagesQuery = query(messagesRef, orderByChild('userId'), equalTo(userId));
-    const snapshot = await get(userMessagesQuery);
+    // Delete all messages from this user in ALL rooms
+    const deletePromises = [];
+    for (const room of Object.values(CHAT_ROOMS)) {
+      const roomPath = `${dbPath}/${room.id}`;
+      const messagesRef = ref(database, `${roomPath}/messages`);
+      const userMessagesQuery = query(messagesRef, orderByChild('userId'), equalTo(userId));
+      const snapshot = await get(userMessagesQuery);
 
-    if (snapshot.exists()) {
-      const deletePromises = [];
-      snapshot.forEach((childSnapshot) => {
-        const messageRef = ref(database, `generalChat/messages/${childSnapshot.key}`);
-        deletePromises.push(remove(messageRef));
-      });
-      await Promise.all(deletePromises);
+      if (snapshot.exists()) {
+        snapshot.forEach((childSnapshot) => {
+          const messageRef = ref(database, `${roomPath}/messages/${childSnapshot.key}`);
+          deletePromises.push(remove(messageRef));
+        });
+      }
     }
+
+    await Promise.all(deletePromises);
 
     return { success: true };
   } catch (error) {
@@ -199,7 +276,9 @@ export const unblockUser = async (userId, user) => {
     }
 
     const { ref, remove } = await import('firebase/database');
-    const blockedRef = ref(database, `generalChat/blockedUsers/${userId}`);
+    const { getDatabasePath } = await import('./config');
+    const dbPath = getDatabasePath();
+    const blockedRef = ref(database, `${dbPath}/blockedUsers/${userId}`);
 
     await remove(blockedRef);
     return { success: true };
@@ -222,7 +301,9 @@ export const isUserBlocked = async (userId) => {
     }
 
     const { ref, get } = await import('firebase/database');
-    const blockedRef = ref(database, `generalChat/blockedUsers/${userId}`);
+    const { getDatabasePath } = await import('./config');
+    const dbPath = getDatabasePath();
+    const blockedRef = ref(database, `${dbPath}/blockedUsers/${userId}`);
     const snapshot = await get(blockedRef);
 
     return snapshot.exists();
@@ -244,7 +325,9 @@ export const getBlockedUsers = async () => {
     }
 
     const { ref, get } = await import('firebase/database');
-    const blockedRef = ref(database, 'generalChat/blockedUsers');
+    const { getDatabasePath } = await import('./config');
+    const dbPath = getDatabasePath();
+    const blockedRef = ref(database, `${dbPath}/blockedUsers`);
     const snapshot = await get(blockedRef);
 
     const blockedUsers = [];
@@ -283,7 +366,9 @@ export const pinMessage = async (messageId, messageData, user) => {
     }
 
     const { ref, set, serverTimestamp } = await import('firebase/database');
-    const pinnedRef = ref(database, 'generalChat/pinnedMessage');
+    const currentRoom = getCurrentRoom();
+    const dbPath = getFullDatabasePath(currentRoom);
+    const pinnedRef = ref(database, `${dbPath}/pinnedMessage`);
 
     await set(pinnedRef, {
       messageId,
@@ -321,7 +406,9 @@ export const unpinMessage = async (user) => {
     }
 
     const { ref, remove } = await import('firebase/database');
-    const pinnedRef = ref(database, 'generalChat/pinnedMessage');
+    const currentRoom = getCurrentRoom();
+    const dbPath = getFullDatabasePath(currentRoom);
+    const pinnedRef = ref(database, `${dbPath}/pinnedMessage`);
 
     await remove(pinnedRef);
     return { success: true };
@@ -345,7 +432,9 @@ export const subscribeToPinnedMessage = async (callback) => {
     }
 
     const { ref, onValue, off } = await import('firebase/database');
-    const pinnedRef = ref(database, 'generalChat/pinnedMessage');
+    const currentRoom = getCurrentRoom();
+    const dbPath = getFullDatabasePath(currentRoom);
+    const pinnedRef = ref(database, `${dbPath}/pinnedMessage`);
 
     const handlePinnedMessage = (snapshot) => {
       if (snapshot.exists()) {
@@ -388,3 +477,173 @@ export const getCurrentUser = () => {
 
   return JSON.parse(user);
 };
+
+// ==================== BANNED WORDS MANAGEMENT ====================
+
+/**
+ * Add a banned word or phrase (admin/staff only)
+ * @param {string} word - Word or phrase to ban
+ * @param {Object} user - User attempting to add banned word
+ * @returns {Promise} - Promise that resolves when word is added
+ */
+export const addBannedWord = async (word, user) => {
+  try {
+    if (!user.isStaff && !user.isAdmin) {
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const database = await getFirebaseDatabase();
+    if (!database) {
+      return { success: false, error: 'Firebase not initialized' };
+    }
+
+    const { ref, push } = await import('firebase/database');
+    const { getDatabasePath } = await import('./config');
+    const dbPath = getDatabasePath();
+    const bannedWordsRef = ref(database, `${dbPath}/bannedWords`);
+
+    await push(bannedWordsRef, {
+      word: word.toLowerCase().trim(),
+      addedBy: user.id || user.username,
+      addedByName: user.name,
+      addedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding banned word:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Remove a banned word (admin/staff only)
+ * @param {string} wordId - ID of banned word to remove
+ * @param {Object} user - User attempting to remove
+ * @returns {Promise} - Promise that resolves when word is removed
+ */
+export const removeBannedWord = async (wordId, user) => {
+  try {
+    if (!user.isStaff && !user.isAdmin) {
+      return { success: false, error: 'Permission denied' };
+    }
+
+    const database = await getFirebaseDatabase();
+    if (!database) {
+      return { success: false, error: 'Firebase not initialized' };
+    }
+
+    const { ref, remove } = await import('firebase/database');
+    const { getDatabasePath } = await import('./config');
+    const dbPath = getDatabasePath();
+    const wordRef = ref(database, `${dbPath}/bannedWords/${wordId}`);
+
+    await remove(wordRef);
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing banned word:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Get all banned words
+ * @returns {Promise<Array>} - Array of banned words
+ */
+export const getBannedWords = async () => {
+  try {
+    const database = await getFirebaseDatabase();
+    if (!database) {
+      return [];
+    }
+
+    const { ref, get } = await import('firebase/database');
+    const { getDatabasePath } = await import('./config');
+    const dbPath = getDatabasePath();
+    const bannedWordsRef = ref(database, `${dbPath}/bannedWords`);
+    const snapshot = await get(bannedWordsRef);
+
+    const bannedWords = [];
+    if (snapshot.exists()) {
+      snapshot.forEach((childSnapshot) => {
+        bannedWords.push({
+          id: childSnapshot.key,
+          ...childSnapshot.val(),
+        });
+      });
+    }
+
+    return bannedWords;
+  } catch (error) {
+    console.error('Error getting banned words:', error);
+    return [];
+  }
+};
+
+/**
+ * Subscribe to banned words updates
+ * @param {function} callback - Callback function to handle banned words
+ * @returns {Promise<function>} - Promise that resolves to unsubscribe function
+ */
+export const subscribeToBannedWords = async (callback) => {
+  try {
+    const database = await getFirebaseDatabase();
+    if (!database) {
+      callback([]);
+      return () => {};
+    }
+
+    const { ref, onValue, off } = await import('firebase/database');
+    const { getDatabasePath } = await import('./config');
+    const dbPath = getDatabasePath();
+    const bannedWordsRef = ref(database, `${dbPath}/bannedWords`);
+
+    const handleBannedWords = (snapshot) => {
+      const words = [];
+      if (snapshot.exists()) {
+        snapshot.forEach((childSnapshot) => {
+          words.push({
+            id: childSnapshot.key,
+            ...childSnapshot.val(),
+          });
+        });
+      }
+      callback(words);
+    };
+
+    onValue(bannedWordsRef, handleBannedWords);
+
+    return () => off(bannedWordsRef, 'value', handleBannedWords);
+  } catch (error) {
+    console.error('Error subscribing to banned words:', error);
+    callback([]);
+    return () => {};
+  }
+};
+
+/**
+ * Check if text contains banned words and mask them
+ * @param {string} text - Text to check
+ * @param {Array} bannedWords - Array of banned word objects
+ * @returns {Object} - { hasBannedWords: boolean, maskedText: string, foundWords: Array }
+ */
+export const checkAndMaskBannedWords = (text, bannedWords) => {
+  let maskedText = text;
+  const foundWords = [];
+
+  bannedWords.forEach((bannedWord) => {
+    const word = bannedWord.word;
+    const regex = new RegExp(word, 'gi');
+    if (regex.test(maskedText)) {
+      foundWords.push(word);
+      maskedText = maskedText.replace(regex, '*'.repeat(word.length));
+    }
+  });
+
+  return {
+    hasBannedWords: foundWords.length > 0,
+    maskedText,
+    foundWords,
+  };
+};
+

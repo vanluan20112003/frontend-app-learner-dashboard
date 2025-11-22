@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Card, Button, Icon, IconButton, Spinner, Alert, Dropdown } from '@openedx/paragon';
+import { Card, Button, Icon, IconButton, Spinner, Alert, Dropdown, Modal } from '@openedx/paragon';
 import {
   Chat,
   Close,
@@ -12,12 +12,14 @@ import {
   InsertEmoticon,
   ExpandLess,
   ExpandMore,
+  Person,
 } from '@openedx/paragon/icons';
 import EmojiPicker from 'emoji-picker-react';
 
 import {
   sendMessage,
   subscribeToMessages,
+  subscribeToRoomMessages,
   deleteMessage,
   blockUser,
   unblockUser,
@@ -25,8 +27,20 @@ import {
   pinMessage,
   unpinMessage,
   subscribeToPinnedMessage,
+  checkAndMaskBannedWords,
+  subscribeToBannedWords,
 } from 'services/firebase/chatService';
 import { getCurrentUserInfo, getUserDisplayName } from 'services/userService';
+import { syncUserToFirebase } from 'services/firebase/syncUserToFirebase';
+import { CHAT_ROOMS } from 'services/firebase/chatRooms';
+import {
+  getLastVisitedTime,
+  updateLastVisitedTime,
+  countUnreadMessages,
+} from 'services/firebase/roomNotifications';
+import BannedWordsManager from './BannedWordsManager';
+import DatabaseSwitcher from './DatabaseSwitcher';
+import RoomSwitcher from './RoomSwitcher';
 import messages from './messages';
 import './index.scss';
 
@@ -57,9 +71,15 @@ export const GeneralChatWidget = () => {
   const [mentionSuggestions, setMentionSuggestions] = useState([]);
   const [showMentionSuggestions, setShowMentionSuggestions] = useState(false);
   const [showBlockedUsers, setShowBlockedUsers] = useState(false);
+  const [bannedWords, setBannedWords] = useState([]);
+  const [currentRoom, setCurrentRoom] = useState(null);
+  const [showUserInfoModal, setShowUserInfoModal] = useState(false);
+  const [selectedUserInfo, setSelectedUserInfo] = useState(null);
+  const [unreadCounts, setUnreadCounts] = useState({});
 
   const messagesEndRef = useRef(null);
   const emojiPickerRef = useRef(null);
+  const roomSubscriptionsRef = useRef({});
 
   // Load user info on mount
   useEffect(() => {
@@ -69,6 +89,9 @@ export const GeneralChatWidget = () => {
         if (userInfo.success && userInfo.isAuthenticated) {
           setCurrentUser(userInfo);
           setAuthError(null);
+
+          // Sync user to Firebase for rules checking
+          syncUserToFirebase(userInfo);
         } else {
           setAuthError('Please login to send messages');
         }
@@ -89,7 +112,15 @@ export const GeneralChatWidget = () => {
     sessionStorage.setItem('chatWidgetOpen', newChatOpen);
   };
 
-  // Subscribe to real-time messages when chat is open
+  // Handle room change
+  const handleRoomChange = (roomId) => {
+    setCurrentRoom(roomId);
+    // Clear current messages to show loading state
+    setChatMessages([]);
+    setPinnedMessage(null);
+  };
+
+  // Subscribe to real-time messages when chat is open or room changes
   useEffect(() => {
     if (!isChatOpen) {
       return undefined;
@@ -112,9 +143,9 @@ export const GeneralChatWidget = () => {
         unsubscribe();
       }
     };
-  }, [isChatOpen]);
+  }, [isChatOpen, currentRoom]);
 
-  // Subscribe to pinned message
+  // Subscribe to pinned message (re-subscribe when room changes)
   useEffect(() => {
     if (!isChatOpen) {
       return undefined;
@@ -129,6 +160,29 @@ export const GeneralChatWidget = () => {
     };
 
     setupPinnedSubscription();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [isChatOpen, currentRoom]);
+
+  // Subscribe to banned words
+  useEffect(() => {
+    if (!isChatOpen) {
+      return undefined;
+    }
+
+    let unsubscribe;
+
+    const setupBannedWordsSubscription = async () => {
+      unsubscribe = await subscribeToBannedWords((words) => {
+        setBannedWords(words);
+      });
+    };
+
+    setupBannedWordsSubscription();
 
     return () => {
       if (unsubscribe) {
@@ -150,6 +204,71 @@ export const GeneralChatWidget = () => {
 
     loadBlockedUsers();
   }, [currentUser, isChatOpen]);
+
+  // Subscribe to all rooms for unread count (admin/staff only)
+  useEffect(() => {
+    if (!currentUser || (!currentUser.isStaff && !currentUser.isAdmin)) {
+      return undefined;
+    }
+
+    if (!isChatOpen) {
+      return undefined;
+    }
+
+    const setupRoomSubscriptions = async () => {
+      const rooms = Object.values(CHAT_ROOMS);
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const room of rooms) {
+        const { id: roomId } = room;
+
+        // Skip current room (already subscribed in main effect)
+        if (roomId === currentRoom) {
+          // eslint-disable-next-line no-continue
+          continue;
+        }
+
+        // Subscribe to this room's messages
+        // eslint-disable-next-line no-await-in-loop
+        const unsubscribe = await subscribeToRoomMessages(roomId, (messages) => {
+          const lastVisited = getLastVisitedTime(roomId);
+          const unreadCount = countUnreadMessages(messages, lastVisited);
+
+          setUnreadCounts((prev) => ({
+            ...prev,
+            [roomId]: unreadCount,
+          }));
+        }, 100); // Get more messages to count properly
+
+        // Store unsubscribe function
+        roomSubscriptionsRef.current[roomId] = unsubscribe;
+      }
+    };
+
+    setupRoomSubscriptions();
+
+    return () => {
+      // Cleanup all room subscriptions
+      Object.values(roomSubscriptionsRef.current).forEach((unsubscribe) => {
+        if (unsubscribe) {
+          unsubscribe();
+        }
+      });
+      roomSubscriptionsRef.current = {};
+    };
+  }, [currentUser, isChatOpen, currentRoom]);
+
+  // Update last visited time when switching rooms
+  useEffect(() => {
+    if (currentRoom !== null && currentUser && (currentUser.isStaff || currentUser.isAdmin)) {
+      updateLastVisitedTime(currentRoom);
+      // Clear unread count for current room
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [currentRoom]: 0,
+      }));
+    }
+  }, [currentRoom, currentUser]);
 
   // Close emoji picker when clicking outside
   useEffect(() => {
@@ -192,7 +311,20 @@ export const GeneralChatWidget = () => {
     }
 
     setIsSending(true);
-    const result = await sendMessage(inputMessage.trim(), currentUser);
+
+    // Check for banned words and mask them
+    const bannedWordCheck = checkAndMaskBannedWords(inputMessage.trim(), bannedWords);
+
+    if (bannedWordCheck.hasBannedWords) {
+      // eslint-disable-next-line no-alert
+      alert(`Your message contains banned words: ${bannedWordCheck.foundWords.join(', ')}. They have been masked with asterisks.`);
+    }
+
+    const messageToSend = bannedWordCheck.hasBannedWords
+      ? bannedWordCheck.maskedText
+      : inputMessage.trim();
+
+    const result = await sendMessage(messageToSend, currentUser);
 
     if (result.success) {
       setInputMessage('');
@@ -247,14 +379,17 @@ export const GeneralChatWidget = () => {
 
     // eslint-disable-next-line no-alert
     if (window.confirm(formatMessage(messages.blockConfirm))) {
-      const result = await blockUser(userId, currentUser);
+      const result = await blockUser(userId, userName, currentUser);
       if (result.success) {
         // Reload blocked users list
         const blocked = await getBlockedUsers();
         setBlockedUsers(blocked);
       } else {
         // eslint-disable-next-line no-alert
-        alert(`Failed to block user: ${result.error}`);
+        const errorMessage = result.error?.code === 'PERMISSION_DENIED'
+          ? 'Permission denied. Please check Firebase Database Rules or contact administrator.'
+          : `Failed to block user: ${result.error}`;
+        alert(errorMessage);
       }
     }
   };
@@ -275,6 +410,21 @@ export const GeneralChatWidget = () => {
     }
   };
 
+  const handleViewUserInfo = (msg) => {
+    if (!currentUser || (!currentUser.isStaff && !currentUser.isAdmin)) {
+      return;
+    }
+
+    setSelectedUserInfo({
+      userId: msg.userId,
+      userName: msg.userName,
+      role: msg.userRole || 'student',
+      isStaff: msg.isStaff || false,
+      isAdmin: msg.isAdmin || false,
+    });
+    setShowUserInfoModal(true);
+  };
+
   const handlePinMessage = async (msg) => {
     if (!currentUser || (!currentUser.isStaff && !currentUser.isAdmin)) {
       return;
@@ -289,6 +439,11 @@ export const GeneralChatWidget = () => {
 
   const handleUnpinMessage = async () => {
     if (!currentUser || (!currentUser.isStaff && !currentUser.isAdmin)) {
+      return;
+    }
+
+    // eslint-disable-next-line no-alert
+    if (!window.confirm(formatMessage(messages.unpinConfirm))) {
       return;
     }
 
@@ -310,26 +465,42 @@ export const GeneralChatWidget = () => {
 
     // Check for @ mentions
     const lastAtIndex = value.lastIndexOf('@');
-    if (lastAtIndex !== -1 && lastAtIndex === value.length - 1) {
-      // Show mention suggestions
-      const uniqueUsers = [...new Set(chatMessages.map((msg) => ({
-        id: msg.userId,
-        name: msg.userName,
-      })))];
-      setMentionSuggestions(uniqueUsers);
-      setShowMentionSuggestions(true);
-    } else if (lastAtIndex !== -1) {
-      const searchTerm = value.substring(lastAtIndex + 1).toLowerCase();
-      if (searchTerm && !searchTerm.includes(' ')) {
-        const uniqueUsers = [...new Set(chatMessages.map((msg) => ({
-          id: msg.userId,
-          name: msg.userName,
-        })))];
-        const filtered = uniqueUsers.filter((user) => user.name.toLowerCase().includes(searchTerm));
+    if (lastAtIndex !== -1) {
+      // Get text after the last @
+      const afterAt = value.substring(lastAtIndex + 1);
+
+      // Check if there's a space after @ (mention completed)
+      if (afterAt.includes(' ')) {
+        setShowMentionSuggestions(false);
+        return;
+      }
+
+      const searchTerm = afterAt.toLowerCase();
+
+      // Get unique users from messages using Map to avoid duplicates
+      const usersMap = new Map();
+      chatMessages.forEach((msg) => {
+        if (!usersMap.has(msg.userId)) {
+          usersMap.set(msg.userId, {
+            id: msg.userId,
+            name: msg.userName,
+          });
+        }
+      });
+      const uniqueUsers = Array.from(usersMap.values());
+
+      // Filter users based on search term
+      if (searchTerm.length === 0) {
+        // Just typed @, show all users
+        setMentionSuggestions(uniqueUsers);
+        setShowMentionSuggestions(uniqueUsers.length > 0);
+      } else {
+        // Filter by search term (starts with)
+        const filtered = uniqueUsers.filter((user) =>
+          user.name.toLowerCase().startsWith(searchTerm)
+        );
         setMentionSuggestions(filtered);
         setShowMentionSuggestions(filtered.length > 0);
-      } else {
-        setShowMentionSuggestions(false);
       }
     } else {
       setShowMentionSuggestions(false);
@@ -341,6 +512,14 @@ export const GeneralChatWidget = () => {
     const newMessage = inputMessage.substring(0, lastAtIndex) + `@${userName} `;
     setInputMessage(newMessage);
     setShowMentionSuggestions(false);
+  };
+
+  // Handle click on username to tag them
+  const handleUserClick = (userName) => {
+    setInputMessage((prev) => `${prev}@${userName} `);
+    setShowMentionSuggestions(false);
+    // Focus on input after clicking username
+    document.querySelector('.chat-input')?.focus();
   };
 
   const handleKeyPress = (e) => {
@@ -437,6 +616,16 @@ export const GeneralChatWidget = () => {
                 </Alert>
               )}
 
+              {/* Database Switcher - Dev Mode Only */}
+              <DatabaseSwitcher />
+
+              {/* Room Switcher - Always Visible */}
+              <RoomSwitcher
+                onRoomChange={handleRoomChange}
+                unreadCounts={unreadCounts}
+                isStaffOrAdmin={currentUser && (currentUser.isStaff || currentUser.isAdmin)}
+              />
+
               {pinnedMessage && (
                 <div className="pinned-message-container">
                   <div className="pinned-message-header">
@@ -462,53 +651,65 @@ export const GeneralChatWidget = () => {
                 </div>
               )}
 
-              {currentUser && (currentUser.isStaff || currentUser.isAdmin) && (
-                <div className="blocked-users-section mb-2">
-                  <Button
-                    variant="outline-secondary"
-                    size="sm"
-                    onClick={() => setShowBlockedUsers(!showBlockedUsers)}
-                    block
-                  >
-                    <Icon src={Block} className="mr-2" />
-                    {formatMessage(messages.blockedUsers)} ({blockedUsers.length})
-                    <Icon src={showBlockedUsers ? ExpandLess : ExpandMore} className="ml-2" />
-                  </Button>
+              {/* Banned Words Manager - Admin/Staff only */}
+              <BannedWordsManager currentUser={currentUser} />
 
-                  {showBlockedUsers && (
-                    <div className="blocked-users-list mt-2">
-                      {blockedUsers.length === 0 ? (
-                        <div className="text-center text-muted p-2">
-                          <small>{formatMessage(messages.noBlockedUsers)}</small>
-                        </div>
-                      ) : (
-                        blockedUsers.map((blockedUser) => (
-                          <div key={blockedUser.userId} className="blocked-user-item">
-                            <div className="blocked-user-info">
-                              <div className="blocked-user-name font-weight-bold">
-                                {blockedUser.userId}
-                              </div>
-                              <div className="blocked-user-meta">
-                                <small className="text-muted">
-                                  {formatMessage(messages.blockedBy)}: {blockedUser.blockedByName}
-                                </small>
-                              </div>
-                            </div>
-                            <IconButton
-                              src={Block}
-                              iconAs={Icon}
-                              alt={formatMessage(messages.unblockUser)}
-                              onClick={() => handleUnblockUser(blockedUser.userId)}
-                              variant="link"
-                              size="sm"
-                              className="text-danger"
-                            />
+              {/* Blocked Users List - Admin/Staff only */}
+              {currentUser && (currentUser.isStaff || currentUser.isAdmin) && (
+                <Card className="blocked-users-section mb-2">
+                  <Card.Body className="p-2">
+                    <Button
+                      variant="outline-secondary"
+                      size="sm"
+                      onClick={() => setShowBlockedUsers(!showBlockedUsers)}
+                      block
+                    >
+                      <Icon src={Block} className="mr-2" />
+                      {formatMessage(messages.blockedUsers)} ({blockedUsers.length})
+                      <Icon src={showBlockedUsers ? ExpandLess : ExpandMore} className="ml-2" />
+                    </Button>
+
+                    {showBlockedUsers && (
+                      <div className="mt-2">
+                        {blockedUsers.length === 0 ? (
+                          <div className="text-center text-muted p-2">
+                            <small>{formatMessage(messages.noBlockedUsers)}</small>
                           </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
+                        ) : (
+                          <div className="blocked-users-list">
+                            {blockedUsers.map((blockedUser) => (
+                              <div key={blockedUser.userId} className="blocked-user-item">
+                                <div className="blocked-user-info">
+                                  <div className="blocked-user-name">
+                                    {blockedUser.userName || blockedUser.userId}
+                                  </div>
+                                  <div className="blocked-user-meta text-muted">
+                                    <small>
+                                      {formatMessage(messages.blockedBy)}: {blockedUser.blockedByName}
+                                    </small>
+                                    <br />
+                                    <small>
+                                      {formatMessage(messages.blockedAt)}: {new Date(blockedUser.blockedAt).toLocaleString()}
+                                    </small>
+                                  </div>
+                                </div>
+                                <IconButton
+                                  src={Delete}
+                                  iconAs={Icon}
+                                  alt={formatMessage(messages.unblockUser)}
+                                  onClick={() => handleUnblockUser(blockedUser.userId)}
+                                  variant="link"
+                                  size="sm"
+                                  className="btn-icon text-danger"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Card.Body>
+                </Card>
               )}
 
               <div className="chat-messages">
@@ -534,7 +735,18 @@ export const GeneralChatWidget = () => {
                         <div key={msg.id} className={getMessageClasses(msg)}>
                           <div className="message-header">
                             <div className="message-user-info">
-                              <span className="message-user">{msg.userName}</span>
+                              <span
+                                className="message-user clickable-username"
+                                onClick={() => handleUserClick(msg.userName)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyPress={(e) => {
+                                  if (e.key === 'Enter') handleUserClick(msg.userName);
+                                }}
+                                title={`Click to mention @${msg.userName}`}
+                              >
+                                {msg.userName}
+                              </span>
                               {getRoleBadge(msg)}
                               {userBlocked && <span className="blocked-badge">Blocked</span>}
                             </div>
@@ -558,10 +770,18 @@ export const GeneralChatWidget = () => {
                                 />
                                 <Dropdown.Menu>
                                   {isStaffOrAdmin && (
-                                    <Dropdown.Item onClick={() => handlePinMessage(msg)}>
-                                      <Icon src={PushPin} className="mr-2" />
-                                      {formatMessage(messages.pinMessage)}
-                                    </Dropdown.Item>
+                                    <>
+                                      <Dropdown.Item onClick={() => handlePinMessage(msg)}>
+                                        <Icon src={PushPin} className="mr-2" />
+                                        {formatMessage(messages.pinMessage)}
+                                      </Dropdown.Item>
+                                      {!isOwnMessage && (
+                                        <Dropdown.Item onClick={() => handleViewUserInfo(msg)}>
+                                          <Icon src={Person} className="mr-2" />
+                                          {formatMessage(messages.viewUserInfo)}
+                                        </Dropdown.Item>
+                                      )}
+                                    </>
                                   )}
                                   {canDelete && (
                                     <Dropdown.Item onClick={() => handleDeleteMessage(msg.id, msg.userId)}>
@@ -646,7 +866,7 @@ export const GeneralChatWidget = () => {
                     value={inputMessage}
                     onChange={handleInputChange}
                     onKeyPress={handleKeyPress}
-                    disabled={isSending || !currentUser || userLoading}
+                    disabled={isSending || !currentUser || userLoading || authError}
                   />
                   <div className="input-group-append">
                     <Button
@@ -668,6 +888,43 @@ export const GeneralChatWidget = () => {
             </div>
           )}
       </Card.Body>
+
+      {/* User Info Modal */}
+      <Modal
+        show={showUserInfoModal}
+        onHide={() => setShowUserInfoModal(false)}
+        size="md"
+        centered
+      >
+        <Modal.Header closeButton>
+          <Modal.Title>{formatMessage(messages.userInformation)}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedUserInfo && (
+            <div className="user-info-content">
+              <div className="user-info-row">
+                <strong>{formatMessage(messages.username)}:</strong>
+                <span className="ml-2">{selectedUserInfo.userName}</span>
+              </div>
+              <div className="user-info-row mt-2">
+                <strong>{formatMessage(messages.user)}:</strong>
+                <span className="ml-2">{selectedUserInfo.userId}</span>
+              </div>
+              <div className="user-info-row mt-2">
+                <strong>{formatMessage(messages.role)}:</strong>
+                <span className="ml-2">
+                  {selectedUserInfo.isAdmin ? 'Admin' : selectedUserInfo.isStaff ? 'Staff' : 'Student'}
+                </span>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowUserInfoModal(false)}>
+            {formatMessage(messages.close)}
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Card>
   );
 };

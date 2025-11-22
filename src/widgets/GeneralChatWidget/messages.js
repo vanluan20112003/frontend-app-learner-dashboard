@@ -71,6 +71,11 @@ const messages = defineMessages({
     defaultMessage: 'Unpin message',
     description: 'Button text to unpin a message',
   },
+  unpinConfirm: {
+    id: 'learnerDashboard.generalChatWidget.unpinConfirm',
+    defaultMessage: 'Are you sure you want to unpin this message?',
+    description: 'Confirmation message before unpinning a message',
+  },
   pinnedMessage: {
     id: 'learnerDashboard.generalChatWidget.pinnedMessage',
     defaultMessage: 'Pinned Message',
@@ -110,6 +115,215 @@ const messages = defineMessages({
     id: 'learnerDashboard.generalChatWidget.blockedBy',
     defaultMessage: 'Blocked by',
     description: 'Label for who blocked the user',
+  },
+  // Banned Words Management
+  bannedWords: {
+    id: 'learnerDashboard.generalChatWidget.bannedWords',
+    defaultMessage: 'Banned Words',
+    description: 'Title for banned words section',
+  },
+  addBannedWord: {
+    id: 'learnerDashboard.generalChatWidget.addBannedWord',
+    defaultMessage: 'Add Banned Word/Phrase',
+    description: 'Label for adding banned word',
+  },
+  enterWordOrPhrase: {
+    id: 'learnerDashboard.generalChatWidget.enterWordOrPhrase',
+    defaultMessage: 'Enter word or phrase...',
+    description: 'Placeholder for banned word input',
+  },
+  add: {
+    id: 'learnerDashboard.generalChatWidget.add',
+    defaultMessage: 'Add',
+    description: 'Add button text',
+  },
+  currentBannedWords: {
+    id: 'learnerDashboard.generalChatWidget.currentBannedWords',
+    defaultMessage: 'Current Banned Words',
+    description: 'Label for banned words list',
+  },
+  noBannedWords: {
+    id: 'learnerDashboard.generalChatWidget.noBannedWords',
+    defaultMessage: 'No banned words',
+    description: 'Message when there are no banned words',
+  },
+  removeWord: {
+    id: 'learnerDashboard.generalChatWidget.removeWord',
+    defaultMessage: 'Remove word',
+    description: 'Alt text for remove word button',
+  },
+  bannedWordAdded: {
+    id: 'learnerDashboard.generalChatWidget.bannedWordAdded',
+    defaultMessage: 'Banned word added successfully',
+    description: 'Success message after adding banned word',
+  },
+  bannedWordRemoved: {
+    id: 'learnerDashboard.generalChatWidget.bannedWordRemoved',
+    defaultMessage: 'Banned word removed successfully',
+    description: 'Success message after removing banned word',
+  },
+  bannedWordsInfo: {
+    id: 'learnerDashboard.generalChatWidget.bannedWordsInfo',
+    defaultMessage: 'Users who use banned words 5 times in one day will be automatically banned for 24 hours.',
+    description: 'Information about banned words auto-ban policy',
+  },
+  // User Ban Management
+  bannedUsersManagement: {
+    id: 'learnerDashboard.generalChatWidget.bannedUsersManagement',
+    defaultMessage: 'Banned Users Management',
+    description: 'Title for banned users management section',
+  },
+  noBannedUsers: {
+    id: 'learnerDashboard.generalChatWidget.noBannedUsers',
+    defaultMessage: 'No banned users',
+    description: 'Message when there are no banned users',
+  },
+  banUserTitle: {
+    id: 'learnerDashboard.generalChatWidget.banUserTitle',
+    defaultMessage: 'Ban User',
+    description: 'Title for ban user modal',
+  },
+  user: {
+    id: 'learnerDashboard.generalChatWidget.user',
+    defaultMessage: 'User',
+    description: 'Label for user',
+  },
+  banDuration: {
+    id: 'learnerDashboard.generalChatWidget.banDuration',
+    defaultMessage: 'Ban Duration',
+    description: 'Label for ban duration',
+  },
+  oneHour: {
+    id: 'learnerDashboard.generalChatWidget.oneHour',
+    defaultMessage: '1 Hour',
+    description: 'Ban duration option: 1 hour',
+  },
+  oneDay: {
+    id: 'learnerDashboard.generalChatWidget.oneDay',
+    defaultMessage: '1 Day (24 hours)',
+    description: 'Ban duration option: 1 day',
+  },
+  oneWeek: {
+    id: 'learnerDashboard.generalChatWidget.oneWeek',
+    defaultMessage: '1 Week (7 days)',
+    description: 'Ban duration option: 1 week',
+  },
+  permanent: {
+    id: 'learnerDashboard.generalChatWidget.permanent',
+    defaultMessage: 'Permanent',
+    description: 'Ban duration option: permanent',
+  },
+  reason: {
+    id: 'learnerDashboard.generalChatWidget.reason',
+    defaultMessage: 'Reason',
+    description: 'Label for ban reason',
+  },
+  optional: {
+    id: 'learnerDashboard.generalChatWidget.optional',
+    defaultMessage: 'optional',
+    description: 'Label for optional field',
+  },
+  enterBanReason: {
+    id: 'learnerDashboard.generalChatWidget.enterBanReason',
+    defaultMessage: 'Enter reason for ban...',
+    description: 'Placeholder for ban reason input',
+  },
+  cancel: {
+    id: 'learnerDashboard.generalChatWidget.cancel',
+    defaultMessage: 'Cancel',
+    description: 'Cancel button text',
+  },
+  banUser: {
+    id: 'learnerDashboard.generalChatWidget.banUser',
+    defaultMessage: 'Ban User',
+    description: 'Ban user button text',
+  },
+  banning: {
+    id: 'learnerDashboard.generalChatWidget.banning',
+    defaultMessage: 'Banning...',
+    description: 'Banning in progress text',
+  },
+  userBanned: {
+    id: 'learnerDashboard.generalChatWidget.userBanned',
+    defaultMessage: 'User banned successfully',
+    description: 'Success message after banning user',
+  },
+  userUnbanned: {
+    id: 'learnerDashboard.generalChatWidget.userUnbanned',
+    defaultMessage: 'User unbanned successfully',
+    description: 'Success message after unbanning user',
+  },
+  unbanUser: {
+    id: 'learnerDashboard.generalChatWidget.unbanUser',
+    defaultMessage: 'Unban user',
+    description: 'Unban user button text',
+  },
+  duration: {
+    id: 'learnerDashboard.generalChatWidget.duration',
+    defaultMessage: 'Duration',
+    description: 'Label for duration',
+  },
+  expired: {
+    id: 'learnerDashboard.generalChatWidget.expired',
+    defaultMessage: 'Expired',
+    description: 'Label for expired ban',
+  },
+  days: {
+    id: 'learnerDashboard.generalChatWidget.days',
+    defaultMessage: 'days',
+    description: 'Label for days',
+  },
+  hours: {
+    id: 'learnerDashboard.generalChatWidget.hours',
+    defaultMessage: 'hours',
+    description: 'Label for hours',
+  },
+  banManagementInfo: {
+    id: 'learnerDashboard.generalChatWidget.banManagementInfo',
+    defaultMessage: 'Bans with expiry times will automatically be removed when expired. Click the delete icon to manually unban a user.',
+    description: 'Information about ban management',
+  },
+  // Violations
+  violationWarning: {
+    id: 'learnerDashboard.generalChatWidget.violationWarning',
+    defaultMessage: 'Warning: Your message contains banned words. Violation {count}/5 today.',
+    description: 'Warning message for banned word violation',
+  },
+  autoBanWarning: {
+    id: 'learnerDashboard.generalChatWidget.autoBanWarning',
+    defaultMessage: 'You have been automatically banned for 24 hours due to repeated use of banned words.',
+    description: 'Warning message for auto-ban',
+  },
+  bannedWordDetected: {
+    id: 'learnerDashboard.generalChatWidget.bannedWordDetected',
+    defaultMessage: 'Your message contains banned words and has been filtered.',
+    description: 'Alert message when banned word is detected',
+  },
+  // User Info
+  viewUserInfo: {
+    id: 'learnerDashboard.generalChatWidget.viewUserInfo',
+    defaultMessage: 'View User Info',
+    description: 'Button text to view user information',
+  },
+  userInformation: {
+    id: 'learnerDashboard.generalChatWidget.userInformation',
+    defaultMessage: 'User Information',
+    description: 'Title for user information modal',
+  },
+  username: {
+    id: 'learnerDashboard.generalChatWidget.username',
+    defaultMessage: 'Username',
+    description: 'Label for username field',
+  },
+  role: {
+    id: 'learnerDashboard.generalChatWidget.role',
+    defaultMessage: 'Role',
+    description: 'Label for user role field',
+  },
+  close: {
+    id: 'learnerDashboard.generalChatWidget.close',
+    defaultMessage: 'Close',
+    description: 'Close button text',
   },
 });
 
