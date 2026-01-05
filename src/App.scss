@@ -10,7 +10,7 @@ $fa-font-path: "~font-awesome/fonts";
 $input-focus-box-shadow: $input-box-shadow; // hack to get upgrade to paragon 4.0.0 to work
 
 @import "~@edx/frontend-component-header/dist/index";
-@import "~@edx/frontend-component-footer/dist/_footer";
+// Footer styles are imported directly by the Footer component
 
 .text-ellipsis {
   overflow: hidden;
@@ -23,10 +23,12 @@ $input-focus-box-shadow: $input-box-shadow; // hack to get upgrade to paragon 4.
 }
 
 #root {
+
   // Removing a odd 1.5 scaling on checkboxes.:
   input[type=checkbox] {
     transform: none;
   }
+
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -45,6 +47,7 @@ $input-focus-box-shadow: $input-box-shadow; // hack to get upgrade to paragon 4.
       top: 0.1em;
       height: 1.75rem;
       margin-right: 1rem;
+
       img {
         display: block;
         height: 100%;
@@ -63,6 +66,7 @@ $input-focus-box-shadow: $input-box-shadow; // hack to get upgrade to paragon 4.
       right: 1rem !important;
     }
   }
+
   .confirm-modal .pgn__modal-body {
     overflow: hidden;
   }
