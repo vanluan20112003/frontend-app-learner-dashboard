@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useIntl } from '@edx/frontend-platform/i18n';
-import { Card, Button, Icon, IconButton, Spinner, Alert, Dropdown, Modal } from '@openedx/paragon';
+import {
+  Card, Button, Icon, IconButton, Spinner, Alert, Dropdown, Modal,
+} from '@openedx/paragon';
 import {
   Chat,
   Close,
@@ -29,6 +31,8 @@ import {
   subscribeToPinnedMessage,
   checkAndMaskBannedWords,
   subscribeToBannedWords,
+  toggleReaction,
+  cleanupOldMessages,
 } from 'services/firebase/chatService';
 import { getCurrentUserInfo, getUserDisplayName } from 'services/userService';
 import { syncUserToFirebase } from 'services/firebase/syncUserToFirebase';
@@ -50,6 +54,15 @@ if (process.env.NODE_ENV === 'development') {
     console.log('Firebase test connection not available');
   });
 }
+
+const REACTION_EMOJIS = [
+  { emoji: '❤️', label: 'heart' },
+  { emoji: '😂', label: 'haha' },
+  { emoji: '👍', label: 'like' },
+  { emoji: '😮', label: 'wow' },
+  { emoji: '😢', label: 'sad' },
+  { emoji: '😡', label: 'angry' },
+];
 
 export const GeneralChatWidget = () => {
   const { formatMessage } = useIntl();
@@ -77,8 +90,12 @@ export const GeneralChatWidget = () => {
   const [selectedUserInfo, setSelectedUserInfo] = useState(null);
   const [unreadCounts, setUnreadCounts] = useState({});
 
+  const [activeReactionPicker, setActiveReactionPicker] = useState(null);
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
+
   const messagesEndRef = useRef(null);
   const emojiPickerRef = useRef(null);
+  const inputRef = useRef(null);
   const roomSubscriptionsRef = useRef({});
 
   // Load user info on mount
@@ -230,9 +247,9 @@ export const GeneralChatWidget = () => {
 
         // Subscribe to this room's messages
         // eslint-disable-next-line no-await-in-loop
-        const unsubscribe = await subscribeToRoomMessages(roomId, (messages) => {
+        const unsubscribe = await subscribeToRoomMessages(roomId, (roomMessages) => {
           const lastVisited = getLastVisitedTime(roomId);
-          const unreadCount = countUnreadMessages(messages, lastVisited);
+          const unreadCount = countUnreadMessages(roomMessages, lastVisited);
 
           setUnreadCounts((prev) => ({
             ...prev,
@@ -270,11 +287,14 @@ export const GeneralChatWidget = () => {
     }
   }, [currentRoom, currentUser]);
 
-  // Close emoji picker when clicking outside
+  // Close emoji picker and reaction picker when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
         setShowEmojiPicker(false);
+      }
+      if (!event.target.closest('.reaction-picker-container')) {
+        setActiveReactionPicker(null);
       }
     };
 
@@ -284,18 +304,34 @@ export const GeneralChatWidget = () => {
     };
   }, []);
 
+  const hasScrolledInitially = useRef(false);
+
   // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    if (messagesEndRef.current && isChatOpen) {
-      // Use setTimeout to ensure DOM has updated
-      setTimeout(() => {
-        if (messagesEndRef.current) {
-          const chatMessagesContainer = messagesEndRef.current.closest('.chat-messages');
-          if (chatMessagesContainer) {
-            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+  const scrollToBottom = (smooth = false) => {
+    requestAnimationFrame(() => {
+      if (messagesEndRef.current) {
+        const container = messagesEndRef.current.closest('.chat-messages');
+        if (container) {
+          if (smooth) {
+            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+          } else {
+            container.scrollTop = container.scrollHeight;
           }
         }
-      }, 100);
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!isChatOpen || chatMessages.length === 0) return;
+    if (!hasScrolledInitially.current) {
+      // Lần đầu: scroll ngay + thêm 1 lần nữa sau 500ms để chắc chắn
+      scrollToBottom(false);
+      setTimeout(() => scrollToBottom(false), 500);
+      hasScrolledInitially.current = true;
+    } else {
+      // Tin nhắn mới: scroll smooth
+      scrollToBottom(true);
     }
   }, [chatMessages, isChatOpen]);
 
@@ -411,7 +447,7 @@ export const GeneralChatWidget = () => {
   };
 
   const handleViewUserInfo = (msg) => {
-    if (!currentUser || (!currentUser.isStaff && !currentUser.isAdmin)) {
+    if (!currentUser) {
       return;
     }
 
@@ -460,45 +496,38 @@ export const GeneralChatWidget = () => {
   };
 
   const handleInputChange = (e) => {
-    const value = e.target.value;
+    const { value } = e.target;
     setInputMessage(value);
 
     // Check for @ mentions
     const lastAtIndex = value.lastIndexOf('@');
     if (lastAtIndex !== -1) {
-      // Get text after the last @
       const afterAt = value.substring(lastAtIndex + 1);
 
-      // Check if there's a space after @ (mention completed)
-      if (afterAt.includes(' ')) {
+      // Get unique users from messages
+      const usersMap = new Map();
+      chatMessages.forEach((msg) => {
+        if (!usersMap.has(msg.userId)) {
+          usersMap.set(msg.userId, { id: msg.userId, name: msg.userName });
+        }
+      });
+      const uniqueUsers = Array.from(usersMap.values());
+
+      // Check if afterAt already matches a full username (mention completed with trailing space)
+      const matchedFull = uniqueUsers.find(
+        (u) => value.substring(lastAtIndex + 1) === `${u.name} `,
+      );
+      if (matchedFull) {
         setShowMentionSuggestions(false);
         return;
       }
 
       const searchTerm = afterAt.toLowerCase();
-
-      // Get unique users from messages using Map to avoid duplicates
-      const usersMap = new Map();
-      chatMessages.forEach((msg) => {
-        if (!usersMap.has(msg.userId)) {
-          usersMap.set(msg.userId, {
-            id: msg.userId,
-            name: msg.userName,
-          });
-        }
-      });
-      const uniqueUsers = Array.from(usersMap.values());
-
-      // Filter users based on search term
       if (searchTerm.length === 0) {
-        // Just typed @, show all users
         setMentionSuggestions(uniqueUsers);
         setShowMentionSuggestions(uniqueUsers.length > 0);
       } else {
-        // Filter by search term (starts with)
-        const filtered = uniqueUsers.filter((user) =>
-          user.name.toLowerCase().startsWith(searchTerm)
-        );
+        const filtered = uniqueUsers.filter((user) => user.name.toLowerCase().startsWith(searchTerm));
         setMentionSuggestions(filtered);
         setShowMentionSuggestions(filtered.length > 0);
       }
@@ -509,17 +538,80 @@ export const GeneralChatWidget = () => {
 
   const handleMentionSelect = (userName) => {
     const lastAtIndex = inputMessage.lastIndexOf('@');
-    const newMessage = inputMessage.substring(0, lastAtIndex) + `@${userName} `;
+    const newMessage = `${inputMessage.substring(0, lastAtIndex)}@${userName} `;
     setInputMessage(newMessage);
     setShowMentionSuggestions(false);
+    // Smart cursor: focus and place cursor at end after mention
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const len = newMessage.length;
+        inputRef.current.setSelectionRange(len, len);
+      }
+    }, 0);
   };
 
   // Handle click on username to tag them
   const handleUserClick = (userName) => {
-    setInputMessage((prev) => `${prev}@${userName} `);
+    const newValue = `${inputMessage}@${userName} `;
+    setInputMessage(newValue);
     setShowMentionSuggestions(false);
-    // Focus on input after clicking username
-    document.querySelector('.chat-input')?.focus();
+    // Smart cursor: focus and place cursor at end
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        const len = newValue.length;
+        inputRef.current.setSelectionRange(len, len);
+      }
+    }, 0);
+  };
+
+  const handleReaction = async (messageId, emoji) => {
+    if (!currentUser || !currentUser.isAuthenticated) {
+      return;
+    }
+    await toggleReaction(messageId, emoji, currentUser);
+    setActiveReactionPicker(null);
+  };
+
+  const handleCleanupOldMessages = async () => {
+    if (!currentUser || (!currentUser.isStaff && !currentUser.isAdmin)) {
+      return;
+    }
+    // eslint-disable-next-line no-alert
+    if (!window.confirm('Delete all messages older than 4 months? This cannot be undone.')) {
+      return;
+    }
+    setIsCleaningUp(true);
+    const result = await cleanupOldMessages();
+    setIsCleaningUp(false);
+    if (result.success) {
+      // eslint-disable-next-line no-alert
+      alert(`Cleanup complete. Deleted ${result.deletedCount} old messages.`);
+    } else {
+      // eslint-disable-next-line no-alert
+      alert(`Cleanup failed: ${result.error}`);
+    }
+  };
+
+  const getReactionSummary = (reactions) => {
+    if (!reactions) {
+      return [];
+    }
+    return Object.entries(reactions).map(([emoji, users]) => ({
+      emoji,
+      count: Object.keys(users).length,
+      users: Object.keys(users),
+      userNames: Object.values(users).map((u) => u.userName).join(', '),
+    }));
+  };
+
+  const hasUserReacted = (reactions, emoji) => {
+    if (!reactions || !reactions[emoji]) {
+      return false;
+    }
+    const userId = currentUser?.id || currentUser?.username;
+    return !!reactions[emoji][userId];
   };
 
   const handleKeyPress = (e) => {
@@ -536,9 +628,9 @@ export const GeneralChatWidget = () => {
     const now = new Date();
     const diffInMinutes = Math.floor((now - date) / 60000);
 
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
+    if (diffInMinutes < 1) { return 'Just now'; }
+    if (diffInMinutes < 60) { return `${diffInMinutes}m ago`; }
+    if (diffInMinutes < 1440) { return `${Math.floor(diffInMinutes / 60)}h ago`; }
     return date.toLocaleDateString();
   };
 
@@ -564,18 +656,62 @@ export const GeneralChatWidget = () => {
 
   const getRoleBadge = (msg) => {
     if (msg.isAdmin) {
-      return <span className="role-badge">👑 Admin</span>;
+      return <span className="role-badge">{String.fromCodePoint(0x1F451)} Admin</span>;
     }
     if (msg.isStaff) {
-      return <span className="role-badge">⭐ Staff</span>;
+      return <span className="role-badge">{String.fromCodePoint(0x2B50)} Staff</span>;
     }
     return null;
+  };
+
+  // Render message text with colored @mentions
+  const renderMessageText = (text) => {
+    if (!text || !text.includes('@')) {
+      return text;
+    }
+
+    // Build list of known usernames from messages (sorted longest first to avoid partial match)
+    const usersMap = new Map();
+    chatMessages.forEach((msg) => {
+      if (!usersMap.has(msg.userId)) {
+        usersMap.set(msg.userId, msg.userName);
+      }
+    });
+    const knownNames = Array.from(usersMap.values()).sort((a, b) => b.length - a.length);
+
+    if (knownNames.length === 0) return text;
+
+    // Build regex that matches @KnownName exactly
+    const escapedNames = knownNames.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    const mentionRegex = new RegExp(`(@(?:${escapedNames.join('|')}))`, 'g');
+
+    const parts = text.split(mentionRegex);
+    return parts.map((part, i) => {
+      if (part.startsWith('@')) {
+        const mentionName = part.slice(1);
+        const isCurrentUser = currentUser && (
+          mentionName === currentUser.name
+          || mentionName === currentUser.username
+        );
+        return (
+          <span
+            // eslint-disable-next-line react/no-array-index-key
+            key={i}
+            className={`mention-highlight ${isCurrentUser ? 'mention-self' : 'mention-other'}`}
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   return (
     <Card id="general-chat-widget" className="mt-3">
       <Card.Body>
-          {!isChatOpen ? (
+        {/* eslint-disable react/jsx-indent, indent */}
+        {!isChatOpen ? (
             <div className="chat-preview">
               <p className="text-muted mb-3">
                 {formatMessage(messages.chatDescription)}
@@ -600,14 +736,28 @@ export const GeneralChatWidget = () => {
                     </small>
                   )}
                 </span>
-                <IconButton
-                  src={Close}
-                  iconAs={Icon}
-                  alt={formatMessage(messages.closeChat)}
-                  onClick={toggleChat}
-                  variant="tertiary"
-                  size="sm"
-                />
+                <div className="d-flex align-items-center gap-1">
+                  {currentUser && (currentUser.isStaff || currentUser.isAdmin) && (
+                    <Button
+                      variant="outline-danger"
+                      size="sm"
+                      onClick={handleCleanupOldMessages}
+                      disabled={isCleaningUp}
+                      title="Delete messages older than 4 months"
+                      className="mr-1"
+                    >
+                      {isCleaningUp ? '...' : String.fromCodePoint(0x1F9F9)}
+                    </Button>
+                  )}
+                  <IconButton
+                    src={Close}
+                    iconAs={Icon}
+                    alt={formatMessage(messages.closeChat)}
+                    onClick={toggleChat}
+                    variant="tertiary"
+                    size="sm"
+                  />
+                </div>
               </div>
 
               {authError && !userLoading && (
@@ -689,7 +839,8 @@ export const GeneralChatWidget = () => {
                                     </small>
                                     <br />
                                     <small>
-                                      {formatMessage(messages.blockedAt)}: {new Date(blockedUser.blockedAt).toLocaleString()}
+                                      {formatMessage(messages.blockedAt)}:{' '}
+                                      {new Date(blockedUser.blockedAt).toLocaleString()}
                                     </small>
                                   </div>
                                 </div>
@@ -713,17 +864,19 @@ export const GeneralChatWidget = () => {
               )}
 
               <div className="chat-messages">
-                {isLoading ? (
+                {isLoading && (
                   <div className="text-center p-4">
                     <Spinner animation="border" size="sm" className="mr-2" />
                     <span className="text-muted">Loading messages...</span>
                   </div>
-                ) : chatMessages.length === 0 ? (
+                )}
+                {!isLoading && chatMessages.length === 0 && (
                   <div className="chat-welcome-message text-center text-muted p-4">
                     <Icon src={Chat} className="mb-2" style={{ fontSize: '2rem' }} />
                     <p>{formatMessage(messages.welcomeMessage)}</p>
                   </div>
-                ) : (
+                )}
+                {!isLoading && chatMessages.length > 0 && (
                   <>
                     {chatMessages.map((msg) => {
                       const isOwnMessage = msg.userId === currentUser?.id || msg.userId === currentUser?.username;
@@ -741,7 +894,7 @@ export const GeneralChatWidget = () => {
                                 role="button"
                                 tabIndex={0}
                                 onKeyPress={(e) => {
-                                  if (e.key === 'Enter') handleUserClick(msg.userName);
+                                  if (e.key === 'Enter') { handleUserClick(msg.userName); }
                                 }}
                                 title={`Click to mention @${msg.userName}`}
                               >
@@ -750,65 +903,114 @@ export const GeneralChatWidget = () => {
                               {getRoleBadge(msg)}
                               {userBlocked && <span className="blocked-badge">Blocked</span>}
                             </div>
-                            <span className="message-time">
-                              {formatMessageTime(msg.timestamp, msg.createdAt)}
-                            </span>
-                          </div>
-                          <div className="message-text">{msg.text}</div>
-
-                          {currentUser && (canDelete || isStaffOrAdmin) && (
-                            <div className="message-actions">
-                              <Dropdown>
-                                <Dropdown.Toggle
-                                  id={`dropdown-${msg.id}`}
-                                  as={IconButton}
-                                  src={MoreVert}
-                                  iconAs={Icon}
-                                  alt="More actions"
-                                  variant="tertiary"
-                                  size="sm"
-                                />
-                                <Dropdown.Menu>
-                                  {isStaffOrAdmin && (
-                                    <>
-                                      <Dropdown.Item onClick={() => handlePinMessage(msg)}>
-                                        <Icon src={PushPin} className="mr-2" />
-                                        {formatMessage(messages.pinMessage)}
-                                      </Dropdown.Item>
-                                      {!isOwnMessage && (
+                            <div className="message-header-right">
+                              <span className="message-time">
+                                {formatMessageTime(msg.timestamp, msg.createdAt)}
+                              </span>
+                              {currentUser && (canDelete || isStaffOrAdmin) && (
+                                <Dropdown>
+                                  <Dropdown.Toggle
+                                    id={`dropdown-${msg.id}`}
+                                    as={IconButton}
+                                    src={MoreVert}
+                                    iconAs={Icon}
+                                    alt="More actions"
+                                    variant="tertiary"
+                                    size="sm"
+                                  />
+                                  <Dropdown.Menu>
+                                    {isStaffOrAdmin && (
+                                      <>
+                                        <Dropdown.Item onClick={() => handlePinMessage(msg)}>
+                                          <Icon src={PushPin} className="mr-2" />
+                                          {formatMessage(messages.pinMessage)}
+                                        </Dropdown.Item>
                                         <Dropdown.Item onClick={() => handleViewUserInfo(msg)}>
                                           <Icon src={Person} className="mr-2" />
                                           {formatMessage(messages.viewUserInfo)}
                                         </Dropdown.Item>
-                                      )}
-                                    </>
+                                      </>
+                                    )}
+                                    {canDelete && (
+                                      <Dropdown.Item onClick={() => handleDeleteMessage(msg.id, msg.userId)}>
+                                        <Icon src={Delete} className="mr-2" />
+                                        {formatMessage(messages.deleteMessage)}
+                                      </Dropdown.Item>
+                                    )}
+                                    {isStaffOrAdmin && !isOwnMessage && (
+                                      <>
+                                        <Dropdown.Divider />
+                                        {userBlocked ? (
+                                          <Dropdown.Item onClick={() => handleUnblockUser(msg.userId)}>
+                                            <Icon src={Block} className="mr-2" />
+                                            {formatMessage(messages.unblockUser)}
+                                          </Dropdown.Item>
+                                        ) : (
+                                          <Dropdown.Item onClick={() => handleBlockUser(msg.userId, msg.userName)}>
+                                            <Icon src={Block} className="mr-2" />
+                                            {formatMessage(messages.blockUser)}
+                                          </Dropdown.Item>
+                                        )}
+                                      </>
+                                    )}
+                                  </Dropdown.Menu>
+                                </Dropdown>
+                              )}
+                            </div>
+                          </div>
+                          <div className="message-text">{renderMessageText(msg.text)}</div>
+
+                          {/* Reactions row: chips + add button together */}
+                          {currentUser && currentUser.isAuthenticated && (
+                            <div className="message-reactions-row">
+                              {getReactionSummary(msg.reactions).map(({ emoji, count, userNames }) => (
+                                <button
+                                  key={emoji}
+                                  type="button"
+                                  className={`reaction-chip ${hasUserReacted(msg.reactions, emoji) ? 'reacted' : ''}`}
+                                  onClick={() => handleReaction(msg.id, emoji)}
+                                  title={userNames}
+                                >
+                                  <span className="reaction-emoji">{emoji}</span>
+                                  <span className="reaction-count">{count}</span>
+                                </button>
+                              ))}
+                              <div className="reaction-picker-container">
+                                <button
+                                  type="button"
+                                  className="reaction-add-btn"
+                                  onClick={() => setActiveReactionPicker(
+                                    activeReactionPicker === msg.id ? null : msg.id,
                                   )}
-                                  {canDelete && (
-                                    <Dropdown.Item onClick={() => handleDeleteMessage(msg.id, msg.userId)}>
-                                      <Icon src={Delete} className="mr-2" />
-                                      {formatMessage(messages.deleteMessage)}
-                                    </Dropdown.Item>
-                                  )}
-                                  {isStaffOrAdmin && !isOwnMessage && (
-                                    <>
-                                      <Dropdown.Divider />
-                                      {userBlocked ? (
-                                        <Dropdown.Item onClick={() => handleUnblockUser(msg.userId)}>
-                                          <Icon src={Block} className="mr-2" />
-                                          {formatMessage(messages.unblockUser)}
-                                        </Dropdown.Item>
-                                      ) : (
-                                        <Dropdown.Item onClick={() => handleBlockUser(msg.userId, msg.userName)}>
-                                          <Icon src={Block} className="mr-2" />
-                                          {formatMessage(messages.blockUser)}
-                                        </Dropdown.Item>
-                                      )}
-                                    </>
-                                  )}
-                                </Dropdown.Menu>
-                              </Dropdown>
+                                  title="Thêm reaction"
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <path d="M8 13.5s1.5 2 4 2 4-2 4-2" strokeLinecap="round" />
+                                    <line x1="9" y1="9" x2="9.01" y2="9" strokeLinecap="round" strokeWidth="3" />
+                                    <line x1="15" y1="9" x2="15.01" y2="9" strokeLinecap="round" strokeWidth="3" />
+                                  </svg>
+                                  <span style={{ fontSize: '0.7rem', lineHeight: 1 }}>+</span>
+                                </button>
+                                {activeReactionPicker === msg.id && (
+                                  <div className="reaction-picker">
+                                    {REACTION_EMOJIS.map(({ emoji, label }) => (
+                                      <button
+                                        key={label}
+                                        type="button"
+                                        className="reaction-emoji-btn"
+                                        onClick={() => handleReaction(msg.id, emoji)}
+                                        title={label}
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
+
                         </div>
                       );
                     })}
@@ -828,7 +1030,7 @@ export const GeneralChatWidget = () => {
                         role="button"
                         tabIndex={0}
                         onKeyPress={(e) => {
-                          if (e.key === 'Enter') handleMentionSelect(user.name);
+                          if (e.key === 'Enter') { handleMentionSelect(user.name); }
                         }}
                       >
                         @{user.name}
@@ -853,10 +1055,29 @@ export const GeneralChatWidget = () => {
                       variant="tertiary"
                       size="sm"
                     />
+                    <button
+                      type="button"
+                      className="mention-trigger-btn"
+                      onClick={() => {
+                        const val = inputMessage;
+                        const newVal = val.endsWith(' ') || val === '' ? `${val}@` : `${val} @`;
+                        setInputMessage(newVal);
+                        setTimeout(() => {
+                          if (inputRef.current) {
+                            inputRef.current.focus();
+                            inputRef.current.setSelectionRange(newVal.length, newVal.length);
+                          }
+                        }, 0);
+                      }}
+                      title="Mention người dùng"
+                      disabled={isSending || !currentUser || userLoading || authError}
+                    >
+                      @
+                    </button>
                   </div>
-                  <input
-                    type="text"
-                    className="form-control"
+                  <textarea
+                    ref={inputRef}
+                    className="form-control chat-textarea"
                     placeholder={
                       currentUser
                         ? formatMessage(messages.typeMessage)
@@ -864,9 +1085,15 @@ export const GeneralChatWidget = () => {
                     }
                     aria-label={formatMessage(messages.typeMessage)}
                     value={inputMessage}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      // Auto-expand: reset height then set to scrollHeight
+                      e.target.style.height = 'auto';
+                      e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                    }}
                     onKeyPress={handleKeyPress}
                     disabled={isSending || !currentUser || userLoading || authError}
+                    rows={1}
                   />
                   <div className="input-group-append">
                     <Button
@@ -887,44 +1114,65 @@ export const GeneralChatWidget = () => {
               </div>
             </div>
           )}
+        {/* eslint-enable react/jsx-indent, indent */}
       </Card.Body>
 
-      {/* User Info Modal */}
-      <Modal
-        show={showUserInfoModal}
-        onHide={() => setShowUserInfoModal(false)}
-        size="md"
-        centered
-      >
-        <Modal.Header closeButton>
-          <Modal.Title>{formatMessage(messages.userInformation)}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {selectedUserInfo && (
-            <div className="user-info-content">
-              <div className="user-info-row">
-                <strong>{formatMessage(messages.username)}:</strong>
-                <span className="ml-2">{selectedUserInfo.userName}</span>
-              </div>
-              <div className="user-info-row mt-2">
-                <strong>{formatMessage(messages.user)}:</strong>
-                <span className="ml-2">{selectedUserInfo.userId}</span>
-              </div>
-              <div className="user-info-row mt-2">
-                <strong>{formatMessage(messages.role)}:</strong>
-                <span className="ml-2">
-                  {selectedUserInfo.isAdmin ? 'Admin' : selectedUserInfo.isStaff ? 'Staff' : 'Student'}
-                </span>
+      {/* User Info Modal - inline trong chat widget */}
+      {showUserInfoModal && selectedUserInfo && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderRadius: 'inherit',
+          }}
+          onClick={() => setShowUserInfoModal(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '8px',
+              padding: '20px',
+              width: '85%',
+              maxWidth: '340px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h6 style={{ margin: 0, fontWeight: 600 }}>{formatMessage(messages.userInformation)}</h6>
+              <button
+                type="button"
+                onClick={() => setShowUserInfoModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#666', lineHeight: 1 }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ fontSize: '0.875rem', lineHeight: '2' }}>
+              <div><strong>{formatMessage(messages.username)}:</strong> {selectedUserInfo.userName}</div>
+              <div><strong>{formatMessage(messages.user)}:</strong> {selectedUserInfo.userId}</div>
+              <div>
+                <strong>{formatMessage(messages.role)}:</strong>{' '}
+                {/* eslint-disable-next-line no-nested-ternary */}
+                {selectedUserInfo.isAdmin ? 'Admin' : selectedUserInfo.isStaff ? 'Staff' : 'Student'}
               </div>
             </div>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowUserInfoModal(false)}>
-            {formatMessage(messages.close)}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+            <div style={{ textAlign: 'right', marginTop: '14px' }}>
+              <Button size="sm" variant="tertiary" onClick={() => setShowUserInfoModal(false)}>
+                {formatMessage(messages.close)}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

@@ -19,6 +19,7 @@ export const DATABASE_ENVIRONMENTS = {
 // Initialize Firebase lazily
 let app = null;
 let database = null;
+let auth = null;
 let initPromise = null;
 
 // Current database environment (default to production)
@@ -45,9 +46,18 @@ const initializeFirebase = async () => {
     try {
       const { initializeApp } = await import('firebase/app');
       const { getDatabase } = await import('firebase/database');
+      const { getAuth, signInAnonymously } = await import('firebase/auth');
 
       app = initializeApp(firebaseConfig);
       database = getDatabase(app);
+      auth = getAuth(app);
+
+      // Sign in anonymously so auth != null in Firebase rules
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        await signInAnonymously(auth);
+      }
+
       console.log('Firebase initialized successfully');
       console.log(`Using database environment: ${currentDbEnvironment}`);
       return { app, database };
@@ -112,4 +122,4 @@ export const getCurrentDatabaseEnvironment = () => currentDbEnvironment;
 // Check if in development mode
 export const isDevMode = () => process.env.NODE_ENV === 'development';
 
-export { app, database, initializeFirebase };
+export { app, database, auth, initializeFirebase };

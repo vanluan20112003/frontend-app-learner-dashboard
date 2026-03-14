@@ -1,6 +1,7 @@
 @import "@openedx/paragon/scss/core/core";
 
 #general-chat-widget {
+  position: relative;
   margin-bottom: map-get($spacers, 4);
 
   .pgn__card-header {
@@ -420,11 +421,17 @@
         // Own messages
         &.own-message {
           margin-left: auto;
-          background: linear-gradient(135deg, $primary-100 0%, lighten($primary-100, 3%) 100%);
-          border: 1px solid $primary-200;
+          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+          border: 1px solid #93c5fd;
+          border-left: 3px solid #3b82f6;
 
           .message-user {
-            color: $primary-700;
+            color: #1d4ed8;
+            font-weight: 700;
+          }
+
+          .message-text {
+            color: #1e3a5f;
           }
         }
 
@@ -491,15 +498,15 @@
             display: flex;
             align-items: center;
             gap: map-get($spacers, 1);
+            flex: 1;
+            min-width: 0;
 
             .message-user {
               font-weight: 600;
 
-              // Clickable username styles
               &.clickable-username {
                 cursor: pointer;
                 transition: all 0.2s ease;
-                position: relative;
                 padding: 2px 4px;
                 margin: -2px -4px;
                 border-radius: 4px;
@@ -537,9 +544,31 @@
             }
           }
 
-          .message-time {
-            color: $gray-500;
-            font-size: 0.7rem;
+          .message-header-right {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+
+            .message-time {
+              color: $gray-500;
+              font-size: 0.7rem;
+              white-space: nowrap;
+            }
+
+            // Dropdown toggle button — always visible, subtle
+            .pgn__icon-btn,
+            [class*="btn-icon"] {
+              opacity: 0.45;
+              transition: opacity 0.2s ease;
+            }
+          }
+        }
+
+        &:hover .message-header-right {
+          .pgn__icon-btn,
+          [class*="btn-icon"] {
+            opacity: 1;
           }
         }
 
@@ -548,22 +577,167 @@
           line-height: 1.5;
           word-wrap: break-word;
           white-space: pre-wrap;
-        }
 
-        .message-actions {
-          position: absolute;
-          top: map-get($spacers, 1);
-          right: map-get($spacers, 1);
-          opacity: 0;
-          transition: opacity 0.2s ease;
-          display: flex;
-          gap: map-get($spacers, 1);
+          .mention-highlight {
+            font-weight: 600;
+            border-radius: 3px;
+            padding: 0 3px;
+            cursor: pointer;
 
-          .btn {
-            padding: 2px 6px;
-            font-size: 0.7rem;
+            &.mention-self {
+              background-color: rgba(255, 193, 7, 0.25);
+              color: #b45309;
+              border: 1px solid rgba(255, 193, 7, 0.5);
+            }
+
+            &.mention-other {
+              background-color: rgba(59, 130, 246, 0.15);
+              color: #1d4ed8;
+              border: 1px solid rgba(59, 130, 246, 0.3);
+            }
           }
         }
+
+        // Emoji font helper
+        .emoji {
+          font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Android Emoji", sans-serif;
+          font-style: normal;
+        }
+
+        // Reactions row: chips + add button in one line
+        .message-reactions-row {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 4px;
+          margin-top: 6px;
+
+          .reaction-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 9px 3px 7px;
+            border-radius: 20px;
+            border: 1.5px solid rgba(0, 0, 0, 0.1);
+            background-color: rgba(255, 255, 255, 0.9);
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            line-height: 1;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            user-select: none;
+
+            .reaction-emoji {
+              font-size: 1rem;
+              line-height: 1;
+              font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
+            }
+
+            .reaction-count {
+              font-weight: 700;
+              color: $gray-600;
+              font-size: 0.72rem;
+            }
+
+            &:hover {
+              background-color: $light-300;
+              border-color: rgba(0, 0, 0, 0.2);
+              transform: scale(1.08);
+              box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+            }
+
+            &.reacted {
+              background-color: rgba(59, 130, 246, 0.1);
+              border-color: rgba(59, 130, 246, 0.5);
+
+              .reaction-count {
+                color: #1d4ed8;
+              }
+            }
+          }
+
+          .reaction-picker-container {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+
+            .reaction-add-btn {
+              border: 1.5px dashed rgba(0, 0, 0, 0.2);
+              background: rgba(255, 255, 255, 0.6);
+              cursor: pointer;
+              transition: all 0.15s ease;
+              padding: 3px 8px;
+              border-radius: 20px;
+              color: $gray-500;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              gap: 3px;
+
+              svg {
+                flex-shrink: 0;
+                color: $gray-500;
+              }
+
+              &:hover {
+                background-color: $light-200;
+                border-color: rgba(0, 0, 0, 0.3);
+                border-style: solid;
+                color: $gray-700;
+                transform: scale(1.08);
+
+                svg {
+                  color: $gray-700;
+                }
+              }
+            }
+
+            .reaction-picker {
+              position: absolute;
+              bottom: calc(100% + 8px);
+              left: 0;
+              background-color: white;
+              border: 1px solid rgba(0, 0, 0, 0.1);
+              border-radius: 28px;
+              padding: 8px 12px;
+              display: flex;
+              gap: 4px;
+              box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.08);
+              z-index: 30;
+              white-space: nowrap;
+              animation: reactionPickerIn 0.15s ease-out;
+
+              @keyframes reactionPickerIn {
+                from { opacity: 0; transform: scale(0.8) translateY(6px); }
+                to   { opacity: 1; transform: scale(1) translateY(0); }
+              }
+
+              .reaction-emoji-btn {
+                border: none;
+                background: transparent;
+                font-size: 1.4rem;
+                font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
+                cursor: pointer;
+                border-radius: 50%;
+                width: 36px;
+                height: 36px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.12s ease;
+                padding: 0;
+                line-height: 1;
+
+                &:hover {
+                  background-color: $light-200;
+                  transform: scale(1.35);
+                }
+              }
+            }
+          }
+        }
+
+
       }
     }
 
@@ -611,11 +785,45 @@
       }
 
       .input-group {
+        align-items: flex-end;
+
         .input-group-prepend {
+          display: flex;
+          align-items: center;
+          gap: 2px;
+
           .btn {
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;
             border-right: none;
+          }
+
+          .mention-trigger-btn {
+            border: none;
+            background: transparent;
+            color: $gray-500;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            padding: 0;
+            line-height: 1;
+
+            &:hover:not(:disabled) {
+              background-color: $light-300;
+              color: $primary-500;
+            }
+
+            &:disabled {
+              opacity: 0.4;
+              cursor: not-allowed;
+            }
           }
         }
 
@@ -626,6 +834,18 @@
             border-color: $primary-500;
             box-shadow: 0 0 0 0.2rem rgba($primary-500, 0.25);
           }
+        }
+
+        .chat-textarea {
+          resize: none;
+          overflow-y: hidden;
+          min-height: 38px;
+          max-height: 150px;
+          line-height: 1.5;
+          padding-top: 7px;
+          padding-bottom: 7px;
+          transition: height 0.1s ease;
+          overflow-y: auto;
         }
 
         .input-group-append {

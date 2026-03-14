@@ -393,11 +393,11 @@ export const pinMessage = async (messageId, messageData, user) => {
       text: messageData.text,
       userName: messageData.userName,
       userId: messageData.userId,
-      isAdmin: messageData.isAdmin,
-      isStaff: messageData.isStaff,
+      isAdmin: messageData.isAdmin === true,
+      isStaff: messageData.isStaff === true,
       pinnedAt: serverTimestamp(),
       pinnedBy: user.id || user.username,
-      pinnedByName: user.name,
+      pinnedByName: user.name || user.username || '',
     });
 
     return { success: true };
@@ -636,6 +636,106 @@ export const subscribeToBannedWords = async (callback) => {
     console.error('Error subscribing to banned words:', error);
     callback([]);
     return () => {};
+  }
+};
+
+// ==================== MESSAGE REACTIONS ====================
+
+/**
+ * Add or toggle a reaction on a message
+ * @param {string} messageId - Message ID
+ * @param {string} emoji - Emoji reaction (e.g., '❤️', '👍')
+ * @param {Object} user - Current user
+ * @returns {Promise} - Promise that resolves when reaction is saved
+ */
+export const toggleReaction = async (messageId, emoji, user) => {
+  try {
+    const database = await getFirebaseDatabase();
+    if (!database) {
+      return { success: false, error: 'Firebase not initialized' };
+    }
+
+    const {
+      ref, get, set, remove,
+    } = await import('firebase/database');
+    const currentRoom = getCurrentRoom();
+    const dbPath = getFullDatabasePath(currentRoom);
+    const userId = user.id || user.username || 'guest';
+    const reactionRef = ref(database, `${dbPath}/messages/${messageId}/reactions/${emoji}/${userId}`);
+
+    const snapshot = await get(reactionRef);
+    if (snapshot.exists()) {
+      // Remove reaction if already exists (toggle off)
+      await remove(reactionRef);
+    } else {
+      // Add reaction
+      await set(reactionRef, {
+        userName: user.name || 'Anonymous',
+        reactedAt: new Date().toISOString(),
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error toggling reaction:', error);
+    return { success: false, error };
+  }
+};
+
+// ==================== MESSAGE CLEANUP ====================
+
+/**
+ * Delete messages older than 4 months (run on dev database)
+ * @returns {Promise} - Promise that resolves with count of deleted messages
+ */
+export const cleanupOldMessages = async () => {
+  try {
+    const database = await getFirebaseDatabase();
+    if (!database) {
+      return { success: false, error: 'Firebase not initialized' };
+    }
+
+    const { ref, get, remove } = await import('firebase/database');
+    const { getFullDatabasePath, auth } = await import('./config');
+    const { CHAT_ROOMS } = await import('./chatRooms');
+
+    const { getAuth } = await import('firebase/auth');
+    const currentAuth = auth || getAuth();
+    console.log('[Cleanup] auth.currentUser:', currentAuth?.currentUser?.uid || 'NULL - not authenticated');
+
+    const fourMonthsAgo = Date.now() - (4 * 30 * 24 * 60 * 60 * 1000);
+
+    const rooms = Object.values(CHAT_ROOMS);
+    const allDeletePromises = rooms.map(async (room) => {
+      const roomPath = getFullDatabasePath(room.id);
+      const messagesRef = ref(database, `${roomPath}/messages`);
+      // eslint-disable-next-line no-await-in-loop
+      const snapshot = await get(messagesRef);
+
+      if (!snapshot.exists()) {
+        return 0;
+      }
+
+      const deletePromises = [];
+      snapshot.forEach((childSnapshot) => {
+        const message = childSnapshot.val();
+        const msgTime = message.timestamp || (message.createdAt ? new Date(message.createdAt).getTime() : null);
+        if (msgTime && msgTime < fourMonthsAgo) {
+          const msgRef = ref(database, `${getFullDatabasePath(room.id)}/messages/${childSnapshot.key}`);
+          deletePromises.push(remove(msgRef));
+        }
+      });
+      await Promise.all(deletePromises);
+      return deletePromises.length;
+    });
+
+    const counts = await Promise.all(allDeletePromises);
+    const totalDeleted = counts.reduce((sum, c) => sum + c, 0);
+
+    return { success: true, deletedCount: totalDeleted };
+  } catch (error) {
+    console.error('Error cleaning up old messages:', error);
+    return { success: false, error };
   }
 };
 
