@@ -4,12 +4,10 @@ import { StrictDict } from 'utils';
 
 import * as app from './app';
 import * as requests from './requests';
-import * as microUnits from './microUnits';
 
 const modules = {
   app,
   requests,
-  microUnits,
 };
 
 /**

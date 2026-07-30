@@ -38,7 +38,6 @@ subscribe(APP_READY, () => {
         <NoticesWrapper>
           <Routes>
             <Route path="/" element={<PageWrap><App /></PageWrap>} />
-            <Route path="/micro-unit" element={<PageWrap><App /></PageWrap>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </NoticesWrapper>

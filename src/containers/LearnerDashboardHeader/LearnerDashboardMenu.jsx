@@ -12,8 +12,7 @@ const getLearnerHeaderMenu = (
 ) => {
   // Check current path to set active state
   const currentPath = window.location.pathname;
-  const isMicroUnitPage = currentPath.includes('/learner-dashboard/micro-unit');
-  const isCoursesPage = currentPath === '/learner-dashboard/' || currentPath === '/' || (!isMicroUnitPage && !currentPath.includes('/dashboard/programs'));
+  const isCoursesPage = currentPath === '/learner-dashboard/' || currentPath === '/' || !currentPath.includes('/dashboard/programs');
 
   return {
     mainMenu: [
@@ -35,12 +34,6 @@ const getLearnerHeaderMenu = (
         onClick: (e) => {
           exploreCoursesClick(e);
         },
-      },
-      {
-        type: 'item',
-        href: '/learner-dashboard/micro-unit',
-        content: formatMessage(messages.microUnit),
-        isActive: isMicroUnitPage,
       },
     ],
     secondaryMenu: [
